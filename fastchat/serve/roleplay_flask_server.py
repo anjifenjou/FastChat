@@ -327,6 +327,10 @@ def init_app_parameters():
                         help="Address of the search server, use to query the web when needed")
     parser.add_argument("--api_address", type=str,
                         help="Address of API to which the request are sent")
+    parser.add_argument("--host", type=str, default=None,
+                        help="Address of the flask_server host")
+    parser.add_argument("--port", type=str, default=None,
+                        help="port of the flask_server ")
     args = parser.parse_args()
     # PERSONALITIES
     data_path = args.data_path
