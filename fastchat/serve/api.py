@@ -1,5 +1,6 @@
 """This module provides a ChatGPT-compatible Restful API for chat completion.
 
+(anjifenjou) Additional fields have been added to conversation to include roleplaying
 Usage:
 
 python3 -m fastchat.serve.api
@@ -64,6 +65,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
     )
 
     choices = []
+    # usages = []
     # TODO: batch the requests. maybe not necessary if using CacheFlow worker
     chat_completions = []
     for i in range(request.n):
@@ -71,23 +73,25 @@ async def create_chat_completion(request: ChatCompletionRequest):
         chat_completions.append(content)
 
     for i, content_task in enumerate(chat_completions):
-        content = await content_task
+        content, usage = await content_task
         choices.append(
             ChatCompletionResponseChoice(
                 index=i,
                 message=ChatMessage(role="assistant", content=content),
                 # TODO: support other finish_reason
                 finish_reason="stop",
+                usage=usage,   # Usage field associated to a response choice
             )
         )
-
-    # TODO: support usage field
+        # usages.append(usage)
+    # TODO: support usage field # (anjifenjou: usage should be linked to the different choices
+    #  as they may differ in terms of completion tokens)
     # "usage": {
     #     "prompt_tokens": 9,
     #     "completion_tokens": 12,
     #     "total_tokens": 21
     # }
-    return ChatCompletionResponse(choices=choices)
+    return ChatCompletionResponse(choices=choices)  # , usage=usages
 
 
 def get_gen_params(
@@ -102,15 +106,32 @@ def get_gen_params(
     is_chatglm = "chatglm" in model_name.lower()
     # TODO(suquark): The template is currently a reference. Here we have to make a copy.
     conv = get_default_conv_template(model_name).copy()
+    conv.model_name = model_name
 
     for message in messages:
+        # Currently all fields are sent as strings
         msg_role = message["role"]
+        if msg_role == "request_type":
+            conv.roleplay = (message["content"] == "roleplay_chat")
         if msg_role == "system":
-            conv.system = message["content"]
+            conv.system = message.get("content", conv.system)
         elif msg_role == "user":
             conv.append_message(conv.roles[0], message["content"])
         elif msg_role == "assistant":
             conv.append_message(conv.roles[1], message["content"])
+        # New conversation metadata fields
+        elif msg_role == "assistant_persona":
+            conv.assistant_persona = message["content"].split('||')
+        elif msg_role == "assistant_name":
+            conv.assistant_name = message["content"]
+        elif msg_role == "user_persona":
+            conv.user_persona = message["content"].split('||')
+        elif msg_role == "knowledge_response":
+            conv.knowledge_response = message["content"]
+        # elif msg_role == "observed_image_captions":
+        #     conv.observed_image_captions = message["content"].split('||')
+        elif msg_role == "memory":
+            conv.memory = message["content"].split('||')
         else:
             raise ValueError(f"Unknown role: {msg_role}")
 
@@ -168,8 +189,9 @@ async def chat_completion(model_name: str, gen_params: Dict[str, Any]):
             data = json.loads(chunk.decode())
             if data["error_code"] == 0:
                 output = data["text"].strip()
+                usage = json.loads(data["usage"]) if isinstance(data["usage"], str) else data["usage"]
 
-        return output
+        return output, usage
 
 
 if __name__ == "__main__":

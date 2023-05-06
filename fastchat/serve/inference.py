@@ -1,4 +1,6 @@
-"""Inference for FastChat models."""
+"""Inference for FastChat models.
+Added tokens usage count
+"""
 import abc
 import gc
 import math
@@ -47,6 +49,7 @@ def raise_warning_for_incompatible_cpu_offloading_configuration(device: str, loa
             return False
     return cpu_offloading
 
+
 def get_gpu_memory(max_gpus=None):
     gpu_memory = []
     num_gpus = (
@@ -77,6 +80,7 @@ def raise_warning_for_old_weights(model_path, model):
                 "2. Use the old conversation template by `python3 -m fastchat.serve.cli --model-path /path/to/vicuna-v0 --conv-template conv_one_shot`\n"
                 "3. Downgrade fschat to fschat==0.1.10 (Not recommonded).\n"
             )
+
 
 def load_model(
     model_path, device, num_gpus, max_gpu_memory=None, load_8bit=False, cpu_offloading=False, debug=False
@@ -178,25 +182,22 @@ def generate_stream(
     output_ids = list(input_ids)
 
     if model.config.is_encoder_decoder:
-         max_src_len = context_len
+        max_src_len = context_len
     else:
-         max_src_len = context_len - max_new_tokens - 8
+        max_src_len = context_len - max_new_tokens - 8
 
     input_ids = input_ids[-max_src_len:]
 
     if model.config.is_encoder_decoder:
-         encoder_output = model.encoder(input_ids=torch.as_tensor([input_ids],
-                                                      device=device))[0]
-         start_ids = torch.as_tensor([[model.generation_config.decoder_start_token_id]],
-                     dtype=torch.int64, device=device)
+        encoder_output = model.encoder(input_ids=torch.as_tensor([input_ids], device=device))[0]
+        start_ids = torch.as_tensor([[model.generation_config.decoder_start_token_id]], dtype=torch.int64,
+                                    device=device)
 
     for i in range(max_new_tokens):
         if i == 0:
             if model.config.is_encoder_decoder:
-                 out = model.decoder(input_ids=start_ids,
-                                     encoder_hidden_states=encoder_output,
-                                     use_cache=True)
-                 logits = model.lm_head(out[0])
+                out = model.decoder(input_ids=start_ids, encoder_hidden_states=encoder_output, use_cache=True)
+                logits = model.lm_head(out[0])
             else:
                 out = model(torch.as_tensor([input_ids], device=device), use_cache=True)
                 logits = out.logits
@@ -204,9 +205,9 @@ def generate_stream(
         else:
             if model.config.is_encoder_decoder:
                 out = model.decoder(input_ids=torch.as_tensor([[token]], device=device),
-                             encoder_hidden_states=encoder_output,
-                             use_cache=True,
-                             past_key_values=past_key_values)
+                                    encoder_hidden_states=encoder_output,
+                                    use_cache=True,
+                                    past_key_values=past_key_values)
 
                 logits = model.lm_head(out[0])
             else:
@@ -241,18 +242,26 @@ def generate_stream(
             if echo:
                 tmp_output_ids = output_ids
                 rfind_start = len_prompt
+                num_completion_tokens = len(tmp_output_ids) - input_echo_len
             else:
                 tmp_output_ids = output_ids[input_echo_len:]
                 rfind_start = 0
+                num_completion_tokens = len(tmp_output_ids)
 
-            output = tokenizer.decode(tmp_output_ids, skip_special_tokens=True, 
+            output = tokenizer.decode(tmp_output_ids, skip_special_tokens=True,
                                       spaces_between_special_tokens=False)
             if stop_str:
                 pos = output.rfind(stop_str, rfind_start)
                 if pos != -1:
                     output = output[:pos]
                     stopped = True
-            yield output
+            # NEW
+            usage = {
+                     "prompt_tokens": input_echo_len,
+                     "completion_tokens": num_completion_tokens,
+                     "total_tokens": input_echo_len + num_completion_tokens
+                     }
+            yield output, usage
 
         if stopped:
             break
@@ -367,5 +376,6 @@ def add_model_args(parser):
         "--load-8bit", action="store_true", help="Use 8-bit quantization"
     )
     parser.add_argument(
-        "--cpu-offloading", action="store_true", help="Only when using 8-bit quantization: Offload excess weights to the CPU that don't fit on the GPU"
+        "--cpu-offloading", action="store_true",
+        help="Only when using 8-bit quantization: Offload excess weights to the CPU that don't fit on the GPU"
     )

@@ -164,23 +164,25 @@ class ModelWorker:
 
     def generate_stream_gate(self, params):
         try:
-            for output in self.generate_stream_func(
-                self.model,
-                self.tokenizer,
-                params,
-                self.device,
-                self.context_len,
-                args.stream_interval,
+            for output, usage in self.generate_stream_func(  # New added usage
+                    self.model,
+                    self.tokenizer,
+                    params,
+                    self.device,
+                    self.context_len,
+                    args.stream_interval,
             ):
                 ret = {
                     "text": output,
                     "error_code": 0,
+                    "usage": usage,  # New
                 }
                 yield json.dumps(ret).encode() + b"\0"
         except torch.cuda.OutOfMemoryError:
             ret = {
                 "text": server_error_msg,
                 "error_code": 1,
+                "usage": usage,  # New
             }
             yield json.dumps(ret).encode() + b"\0"
 
