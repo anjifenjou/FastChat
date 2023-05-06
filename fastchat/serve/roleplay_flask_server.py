@@ -63,7 +63,7 @@ def user_message():
         #                               ACCESSING MEMORY IF CONDITION REACHED (modify history then)
         ###############################################################################################################
         approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
-        approx_new_prompt_length = conv_map[sender_id]["last"]["last_output_size"] + approximate_input_tokens
+        approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
         # + new_user_persona_length
 
         if approx_new_prompt_length >= prompt_length_threshold:  # access memory when reaching condition
@@ -158,6 +158,7 @@ def init_conversation(sender_id, user_utterance):
     assistant_name = ""
     chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
     if chosen_persona:
+        print(f"the user chose a persona: {chosen_persona}")
         assistant_persona = chosen_persona.get("persona", assistant_persona)
         assistant_name = chosen_persona.get("name", assistant_name)
 
