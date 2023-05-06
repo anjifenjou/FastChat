@@ -110,9 +110,9 @@ def get_gen_params(
 
     for message in messages:
         # Currently all fields are sent as strings
-        msg_role = message["role"]
+        msg_role = message["role"].strip()
         if msg_role == "request_type":
-            conv.roleplay = (message["content"] == "roleplay_chat")
+            conv.roleplay = (message["content"].strip() == "roleplay_chat")
         if msg_role == "system":
             conv.system = message.get("content", conv.system)
         elif msg_role == "user":
