@@ -126,16 +126,16 @@ def user_message():
             conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
                                                                  start=start, stop=stop))
 
-    print(bot_response)
-    print()
+        print(bot_response)
+        print()
 
-    return jsonify(
-        {
-            'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
-            'messages': conv_map[sender_id]["messages"],
-            'chatbot_utterance': bot_response,
-        }
-    )
+        return jsonify(
+            {
+                'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
+                'messages': conv_map[sender_id]["messages"],
+                'chatbot_utterance': bot_response,
+            }
+        )
 
 
 def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
