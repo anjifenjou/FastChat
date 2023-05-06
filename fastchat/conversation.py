@@ -69,7 +69,7 @@ class Conversation:
     def get_prompt(self):
         # New
 
-        if self.is_roleplay:  # currently siupports Vicuna only
+        if self.roleplay:  # currently siupports Vicuna only
             assert "vicuna" in self.model_name.lower(), f"Roleplay is only available for Vicuna"
             assert self.sep_style == SeparatorStyle.ADD_COLON_TWO, f"Invalid style: {self.sep_style} for vicuna_v1_1"
             separation = "." + f"{self.sep}"
