@@ -94,7 +94,7 @@ def user_message():
         )
 
         tokens_usage = completion.choices[0].usage  # usage is now in choices
-        bot_response = completion.choices[0].message["content"]
+        bot_response = completion.choices[0].message.content
 
         ################################################################################################################
         #                                            UPDATE CONVERSATION HISTORY
@@ -184,7 +184,7 @@ def init_conversation(sender_id, user_utterance):
         max_tokens=50  # force the bot t0 start with a short message
     )
 
-    bot_first_message = completion.choices[0].message["content"]
+    bot_first_message = completion.choices[0].message.content
     tokens_usage = completion.choices[0].usage
     conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
@@ -231,7 +231,7 @@ def get_desired_persona(
         messages=[{"role": "user", "content": get_persona_prompt},
                   {"role": "request_type", "content": "submodule_chat"}],
     )
-    persona_response = completion.choices[0].message["content"]
+    persona_response = completion.choices[0].message.content
     if persona_response.strip().lower() == 'none':
         return None
     else:  # supposedly we have the json here
@@ -257,7 +257,7 @@ def generate_user_persona(user_utterances):
                   {"role": "request_type", "content": "submodule_chat"}],
         # n=3  # TODO: think of generating several choices for submodules request and select among them?
     )
-    user_persona = completion.choices[0].message["content"]
+    user_persona = completion.choices[0].message.content
     return user_persona
 
 
@@ -281,7 +281,7 @@ def generate_memory(episode, start, stop,
         messages=[{"role": "user", "content": memory_generation_prompt},
                   {"role": "request_type", "content": "submodule_chat"}],
     )
-    new_memory = completion.choices[0].message["content"]
+    new_memory = completion.choices[0].message.content
     return {"start": start, "stop": stop, "content": new_memory}
 
 
