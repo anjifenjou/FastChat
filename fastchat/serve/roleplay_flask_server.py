@@ -3,11 +3,10 @@ from fastchat import client
 import json
 from pprint import pformat
 from flask import Flask, request, jsonify
-from utils import words_count
 from argparse import ArgumentParser
 from datasets import load_dataset
 import random
-
+from nltk.tokenize import RegexpTokenizer
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
@@ -136,6 +135,15 @@ def user_message():
             'chatbot_utterance': bot_response,
         }
     )
+
+
+def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
+    if isinstance(utterance, str):
+        return len(nltk_tokenizer.tokenize(utterance))
+    else:
+        print("The utterance is not a string")
+        return 0
+
 
 def init_conversation(sender_id, user_utterance):
     """
@@ -316,7 +324,7 @@ def init_app_parameters():
                              "of the user input")
     parser.add_argument("--search_server", typr=str,
                         help="Address of the search server, use to query the web when needed")
-    parser.add_argument("--api_address", ypr=str, default="http://10.106.20.5:8000",
+    parser.add_argument("--api_address", ypr=str,
                         help="Address of API to which the request are sent")
     args = parser.parse_args()
     # PERSONALITIES
