@@ -88,9 +88,6 @@ class Conversation:
             if self.assistant_persona else ""}  
             {'The user provided the following information about him: ' + separation.join(self.user_persona)
              + self.sep2 if self.user_persona else ""} 
-            {"Assistant and user are discussing to find the message conveyed by an image that can be described "
-             "as follows: " + separation.join(self.observed_image_captions) + self.sep2
-            if self.observed_image_captions else ""} 
 
             {"Here are some relevant information from previous episodes of this conversation: " +
              separation.join(self.memory) + self.sep2 if self.memory else ""}
