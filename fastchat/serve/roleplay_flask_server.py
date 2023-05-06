@@ -157,10 +157,13 @@ def init_conversation(sender_id, user_utterance):
     assistant_persona = random.choice(pchat_personalities)
     assistant_name = ""
     chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
+    text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
     if chosen_persona:
-        print(f"the user chose a persona: {chosen_persona}")
+
         assistant_persona = chosen_persona.get("persona", assistant_persona)
+        text = f"The user selected a persona: {'|'.join(assistant_persona)} "
         assistant_name = chosen_persona.get("name", assistant_name)
+    print(text)
 
     conv_map[sender_id] = {"assistant_persona": assistant_persona,
                            "user-persona": [],
