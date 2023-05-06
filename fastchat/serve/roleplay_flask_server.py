@@ -28,7 +28,7 @@ def user_message():
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
-        init_conversation(user_utterance=user_utterance, sender_id=sender_id)
+        bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
 
     else:
         conversation = conv_map[sender_id]
@@ -126,16 +126,16 @@ def user_message():
             conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
                                                                  start=start, stop=stop))
 
-        print(bot_response)
-        print()
+    print(bot_response)
+    print()
 
-        return jsonify(
-            {
-                'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
-                'messages': conv_map[sender_id]["messages"],
-                'chatbot_utterance': bot_response,
-            }
-        )
+    return jsonify(
+        {
+            'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
+            'messages': conv_map[sender_id]["messages"],
+            'chatbot_utterance': bot_response,
+        }
+    )
 
 
 def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
@@ -189,11 +189,13 @@ def init_conversation(sender_id, user_utterance):
     conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
-    return jsonify({
-        'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
-        'messages': conv_map[sender_id]["messages"],
-        'chatbot_utterance': bot_first_message,
-    })
+
+    return bot_first_message
+    # jsonify({
+    #    'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
+    #    'messages': conv_map[sender_id]["messages"],
+    #    'chatbot_utterance': bot_first_message,
+    # })
 
 
 @app.route('/kill_conversation', methods=['GET', 'POST'])
