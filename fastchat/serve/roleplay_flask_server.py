@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify
 from argparse import ArgumentParser
 from datasets import load_dataset
 import random
+from json import JSONDecodeError
 from nltk.tokenize import RegexpTokenizer
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
@@ -243,7 +244,10 @@ def get_desired_persona(
     if persona_response.strip().lower() == 'none':
         return None
     else:  # supposedly we have the json here
-        chosen_persona = json.loads(persona_response)
+        try:
+            chosen_persona = json.loads(persona_response)
+        except JSONDecodeError:
+            return None
         return chosen_persona
 
 
