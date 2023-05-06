@@ -113,7 +113,7 @@ def get_gen_params(
         msg_role = message["role"]
         if msg_role == "request_type":
             conv.roleplay = (message["content"] == "roleplay_chat")
-        if msg_role == "system":
+        elif msg_role == "system":
             conv.system = message.get("content", conv.system)
         elif msg_role == "user":
             conv.append_message(conv.roles[0], message["content"])
