@@ -176,7 +176,7 @@ def init_conversation(sender_id, user_utterance):
     request_msg = [{"role": "request_type", "content": "roleplay_chat"},
                    {"role": "system", "content": system_desc},
                    {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-                   {"role": "assistant_name", "content": conv_map[sender_id]["assistant_persona"]},
+                   {"role": "assistant_name", "content": conv_map[sender_id]["assistant_name"]},
                    ] + [] if chosen_persona else [{"role": "user", "content": user_utterance}]
     # if the first user_utterance was to define the persona, we don't send it in the request and the
     # assistant will start the conversation
