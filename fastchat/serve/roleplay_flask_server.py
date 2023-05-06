@@ -67,6 +67,7 @@ def user_message():
         # + new_user_persona_length
 
         if approx_new_prompt_length >= prompt_length_threshold:  # access memory when reaching condition
+            # TODO actually we should compare approx_new_prompt_length + max_new_tokens to max context size
             # prompt_length_threshold  linked to max_new_tokens and max_possible_context of the considered model (LLaMA)
             conv_map[sender_id]['number_of_mem_access'] += 1
             request_memory_content, history = \
@@ -313,18 +314,18 @@ def init_app_parameters():
     parser.add_argument("--data_path", type=str,
                         default="/Volumes/Crucial/Thesis/Datasets/PersonaChat/personachat_self_original.json",
                         help="Path to  PersonaChat dataset to get personalities")
-    parser.add_argument("--prompt_length_threshold", typr=int, default=1024,  # may be reduce it
+    parser.add_argument("--prompt_length_threshold", type=int, default=1024,  # may be reduce it
                         help="Number of token we don't want to exceed. "
                              "If Reached, generate and access memory and reduce the history in the prompt")
-    parser.add_argument("--num_turn_threshold", typr=int, default=4,
+    parser.add_argument("--num_turn_threshold", type=int, default=4,
                         help="Number of turn after which we generate new memory and store it. Memory is not necessarily"
                              " used straight after but can be accessed  later based on token threshold ")
-    parser.add_argument("--approx_tokens_per_word", typr=float, default=1.5,  # may be reduce it
+    parser.add_argument("--approx_tokens_per_word", type=float, default=1.5,  # may be reduce it
                         help="Estimate of the average number of tokens per words to comput approx tokens length"
                              "of the user input")
-    parser.add_argument("--search_server", typr=str,
+    parser.add_argument("--search_server", type=str,
                         help="Address of the search server, use to query the web when needed")
-    parser.add_argument("--api_address", ypr=str,
+    parser.add_argument("--api_address", type=str,
                         help="Address of API to which the request are sent")
     args = parser.parse_args()
     # PERSONALITIES
@@ -349,5 +350,5 @@ if __name__ == "__main__":  # setting up args
     num_turn_threshold = args.num_turn_threshold
     approx_tokens_per_word = args.approx_tokens_per_word
 
-    app.run(host=args.host if args.host is not None else "0.0.0.0",
-            port=args.port if args.port is not None else 5008)
+    app.run(host=args.host if args.host else "0.0.0.0",
+            port=args.port if args.port else 5008)
