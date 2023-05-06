@@ -31,27 +31,29 @@ class Conversation:
     roles: List[str]
     # All messages
     messages: List[List[str]]
-
-    # New added fields
-
-    # Assistant name in for this conversation
-    assistant_name: Optional[str]
-    # Assistant persona given by the user or randomly selected in personachat
-    assistant_persona: Union[str, List[str]]
-    # User persona detected throughout the conversation by the assistant
-    user_persona: Optional[Union[str, List[str]]]
-    # Caption about an image that user and assistant are supposedly looking at
-    # observed_image_captions: Optional[Union[str, List[str]]]
-    # Generated memory when history[messages] is truncated
-    memory: Optional[Union[List[str], str]]
-    # result of internet querying about user inputs
-    knowledge_response: Optional[str]
-
     # Offset of few shot examples
     offset: int
     # Separator
     sep_style: SeparatorStyle
     sep: str
+
+    # New added fields
+
+    # Assistant name in for this conversation
+    assistant_name: Optional[str] = None
+    # Assistant persona given by the user or randomly selected in personachat
+    assistant_persona: Union[str, List[str]] = None
+    # User persona detected throughout the conversation by the assistant
+    user_persona: Optional[Union[str, List[str]]] = None
+    # Caption about an image that user and assistant are supposedly looking at
+    # observed_image_captions: Optional[Union[str, List[str]]]
+    # Generated memory when history[messages] is truncated
+    memory: Optional[Union[List[str], str]] = None
+    # result of internet querying about user inputs
+    knowledge_response: Optional[str] = None
+    # boolean to say if it is roleplay or not
+    roleplay: bool = False
+
     sep2: str = None
     # Stop criteria (the default one is EOS token)
     stop_str: str = None
@@ -63,10 +65,6 @@ class Conversation:
     conv_id: Any = None
     skip_next: bool = False
     model_name: str = None
-
-    # NEW
-    # boolean to say if it is roleplay or not
-    roleplay: bool = False
 
     def get_prompt(self):
         # New
