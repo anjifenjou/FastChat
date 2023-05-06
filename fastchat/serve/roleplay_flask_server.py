@@ -69,16 +69,16 @@ def user_message():
         if approx_new_prompt_length >= prompt_length_threshold:  # access memory when reaching condition
             # TODO actually we should compare approx_new_prompt_length + max_new_tokens to max context size
             # prompt_length_threshold  linked to max_new_tokens and max_possible_context of the considered model (LLaMA)
-            conv_map[sender_id]['number_of_mem_access'] += 1
+            conv_map[sender_id]['num_memory_access'] += 1
             request_memory_content, history = \
-                get_memory_content(sender_id, memory_index=conv_map[sender_id]['number_of_mem_access'])
+                get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
 
             request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
 
         # send the memories already accessed in preceding turn if the condition for new history is not reached
-        elif conv_map[sender_id]['number_of_mem_access'] > 0:
+        elif conv_map[sender_id]['num_memory_access'] > 0:
             request_memory_content, history = \
-                get_memory_content(sender_id, memory_index=conv_map[sender_id]['number_of_mem_access'])
+                get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
 
             request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
 
