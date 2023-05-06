@@ -50,7 +50,7 @@ def user_message():
         ################################################################################################################
         request_messages += [
             {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-            {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_persona", "")}]
+            {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
 
         ###############################################################################################################
         #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
@@ -166,7 +166,7 @@ def init_conversation(sender_id, user_utterance):
     print(text)
 
     conv_map[sender_id] = {"assistant_persona": assistant_persona,
-                           "user-persona": [],
+                           "user_persona": [],
                            "name": assistant_name,
                            "messages": [],
                            "last_output_size": 0,
