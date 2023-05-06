@@ -167,6 +167,7 @@ def init_conversation(sender_id, user_utterance):
 
     conv_map[sender_id] = {"assistant_persona": assistant_persona,
                            "user_persona": [],
+                           "memory": [],
                            "name": assistant_name,
                            "messages": [],
                            "last_output_size": 0,
