@@ -92,6 +92,7 @@ def user_message():
         completion = client.ChatCompletion.create(
             model="vicuna-13b-v1.1",
             messages=request_messages,
+            max_tokens=args.max_new_tokens,  # added as the model tends to talk too much
         )
 
         tokens_usage = completion.choices[0].usage  # usage is now in choices
@@ -186,7 +187,7 @@ def init_conversation(sender_id, user_utterance):
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
         messages=request_msg,
-        n=3 if chosen_persona else 1,
+        # n=3 if chosen_persona else 1,
         max_tokens=50  # force the bot t0 start with a short message
     )
 
@@ -329,6 +330,8 @@ def init_app_parameters():
     parser.add_argument("--prompt_length_threshold", type=int, default=1024,  # may be reduce it
                         help="Number of token we don't want to exceed. "
                              "If Reached, generate and access memory and reduce the history in the prompt")
+    parser.add_argument("--max_new_tokens", type=int, default=30,
+                        help="Maximum number of generated tokens")  # TODO adapt it dynamically with user input
     parser.add_argument("--num_turn_threshold", type=int, default=4,
                         help="Number of turn after which we generate new memory and store it. Memory is not necessarily"
                              " used straight after but can be accessed  later based on token threshold ")

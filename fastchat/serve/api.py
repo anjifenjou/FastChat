@@ -139,7 +139,7 @@ def get_gen_params(
     conv.append_message(conv.roles[1], None)
 
     if is_chatglm:
-        prompt = conv.messages[conv.offset :]
+        prompt = conv.messages[conv.offset:]
     else:
         prompt = conv.get_prompt()
 
