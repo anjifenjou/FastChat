@@ -69,7 +69,7 @@ class Conversation:
     def get_prompt(self):
         # New
 
-        if self.roleplay:  # currently siupports Vicuna only
+        if self.roleplay:  # currently supports Vicuna only
             assert "vicuna" in self.model_name.lower(), f"Roleplay is only available for Vicuna"
             assert self.sep_style == SeparatorStyle.ADD_COLON_TWO, f"Invalid style: {self.sep_style} for vicuna_v1_1"
             separation = "." + f"{self.sep}"
@@ -81,31 +81,32 @@ class Conversation:
             ret = f"""
             {self.system + self.sep}
 
-            {"The assistant has a name and it is " + self.assistant_name + "." + self.sep
-            if self.assistant_name else ""} {"The following sentences describe assistant personality and background: " +
-                                             separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
-            else ""} {"Remember, the assistant always stay on previously described character." + self.sep2
+            {"L'assistant a un nom, il s'appelle :" + self.assistant_name + "." + self.sep
+            if self.assistant_name else ""} {"Les phrases suivantes décrivent la personnalité de l'assistant :" +
+                                        separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
+            else ""} {"Rappele-toi, l'assistant conserve toujours la personnalité décrite précédemment." + self.sep2
             if self.assistant_persona else ""}  
-            {'The user provided the following information about him: ' + separation.join(self.user_persona)
+            {'Les informations a propos de utilisateur sont les suivantes  : ' + separation.join(self.user_persona)
              + self.sep2 if self.user_persona else ""} 
 
-            {"Here are some relevant information from previous episodes of this conversation: " +
+            {"Voici quelques informations pertinentes tirées des sessions précédentes de cette conversation : " +
              separation.join(self.memory) + self.sep2 if self.memory else ""}
 
-            {"Complete the current ongoing episode as the assistant with the described character would :" if self.messages else
-            "Start a conversation in french as the assistant with the described character would :"}
+            {"Complète la conversation suivante comme le ferait l'assistant avec la personnalité décrite ci-dessus:"
+            if self.messages 
+            else "Commence une conversation en français comme le ferait l'assistant décrit précédemment :"}
 
             """
             seps = [self.sep, self.sep2]
             # here we build conversation history
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + ": " + message + seps[0] if role == self.roles[0] else seps[1] + "\n"
+                    ret += role + ": " + message + seps[0] if role == self.roles[0] else seps[1] # + "\n"
                 else:
                     if self.knowledge_response:
-                        ret += f"Additional information retrieved from internet about last user input is : " \
-                               f"{self.knowledge_response}." \
-                               f"Use it to ground your response. \n"
+                        ret += f" Voici des informations supplémentaires récupérées sur Internet" \
+                               f" à propos du dernier message de l'utilisateur:" \
+                               f"{self.knowledge_response}. Utilise cela pour construire ta réponse. "  # \n"
                     ret += role + ":"
             return ret
 

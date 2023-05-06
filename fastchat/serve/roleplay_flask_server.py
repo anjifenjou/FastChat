@@ -361,10 +361,15 @@ def init_app_parameters():
 
 if __name__ == "__main__":  # setting up args
     args, pchat_personalities = init_app_parameters()
-    system_desc = "A chat between a curious user and an artificial intelligence assistant. " \
-                  "The assistant is engaging, empathetic, and role plays as the character described below. " \
-                  "The assistant gives helpful, detailed and polite an answers to user's questions " \
-                  "and the assistant feels free to ask questions to the user."
+    # system_desc = "A chat between a curious user and an artificial intelligence assistant. " \
+    #             "The assistant is engaging, empathetic, and role plays as the character described below. " \
+    #              "The assistant gives helpful, detailed and polite an answers to user's questions " \
+    #              "and the assistant feels free to ask questions to the user and  make jokes."`
+    system_desc = "Un dialogue entre un utilisateur curieux et un assistant intelligent." \
+                  "L'assistant est impliqué, empathique et joue le rôle du personnage décrit ci-dessous. " \
+                  "L'assistant donne des réponses utiles, détaillées et polies aux questions de l'utilisateur." \
+                  "L'assistant est libre de poser des questions à l'utilisateur et de faire des blagues."
+
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
     approx_tokens_per_word = args.approx_tokens_per_word
