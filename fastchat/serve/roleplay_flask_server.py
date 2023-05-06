@@ -238,6 +238,7 @@ def get_desired_persona(
                   {"role": "request_type", "content": "submodule_chat"}],
     )
     persona_response = completion.choices[0].message.content
+    print(f"The persona response is: {persona_response}")
     if persona_response.strip().lower() == 'none':
         return None
     else:  # supposedly we have the json here
