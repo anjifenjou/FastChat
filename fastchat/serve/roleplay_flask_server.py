@@ -28,7 +28,7 @@ def user_message():
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
-        init_conversation()
+        init_conversation(user_utterance=user_utterance, sender_id=sender_id)
 
     else:
         conversation = conv_map[sender_id]
