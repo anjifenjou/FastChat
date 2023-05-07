@@ -32,6 +32,7 @@ def user_message():
         bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
 
     else:
+        conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
         conversation = conv_map[sender_id]
         history = conversation["messages"]
         request_messages = [{"role": "request_type", "content": "roleplay_chat"},
@@ -101,8 +102,7 @@ def user_message():
         ################################################################################################################
         #                                            UPDATE CONVERSATION HISTORY
         ################################################################################################################
-        conv_map[sender_id]["messages"] += [{'role': 'user', 'content': user_utterance},
-                                            {'role': 'assistant', 'content': bot_response}]
+        conv_map[sender_id]["messages"].append({'role': 'assistant', 'content': bot_response})
         conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
         history = conv_map[sender_id]["messages"]
 
@@ -161,7 +161,6 @@ def init_conversation(sender_id, user_utterance):
     chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
     text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
     if chosen_persona:
-
         assistant_persona = chosen_persona.get("persona", assistant_persona)
         text = f"The user selected a persona: {'|'.join(assistant_persona)} "
         assistant_name = chosen_persona.get("name", assistant_name)
@@ -170,7 +169,7 @@ def init_conversation(sender_id, user_utterance):
     conv_map[sender_id] = {"assistant_persona": assistant_persona,
                            "user_persona": [],
                            "memory": [],
-                           "name": assistant_name,
+                           "assistant_name": assistant_name,
                            "messages": [],
                            "last_output_size": 0,
                            "num_memory_access": 0}
@@ -193,7 +192,7 @@ def init_conversation(sender_id, user_utterance):
 
     bot_first_message = completion.choices[0].message.content
     tokens_usage = completion.choices[0].usage
-    conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'assistant', 'content': bot_first_message}]
+    conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
 
@@ -235,6 +234,7 @@ def get_desired_persona(
         "{user_utterance}"
     """  # positivity in the prompt
 
+    # if not fully working can bypass it by always returning None
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
         messages=[{"role": "user", "content": get_persona_prompt},
@@ -247,6 +247,8 @@ def get_desired_persona(
     else:  # supposedly we have the json here
         try:
             chosen_persona = json.loads(persona_response)
+            if not isinstance(chosen_persona, dict):  # The case when it is a long string for stating None
+                return None
         except JSONDecodeError:
             return None
         return chosen_persona
