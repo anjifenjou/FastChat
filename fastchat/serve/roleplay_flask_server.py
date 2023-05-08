@@ -10,6 +10,7 @@ from json import JSONDecodeError
 from nltk.tokenize import RegexpTokenizer
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+import re
 
 conv_map = {}  # a dictionary of active conversations
 
@@ -29,7 +30,7 @@ def user_message():
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
-        bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
+        bot_response = clean_bot_response(init_conversation(user_utterance=user_utterance, sender_id=sender_id))
 
     else:
         conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
@@ -99,7 +100,8 @@ def user_message():
 
         tokens_usage = completion.choices[0].usage  # usage is now in choices
         bot_response = completion.choices[0].message.content
-
+        print(f"Uncleaned bot response: {bot_response}")
+        bot_response = clean_bot_response(bot_response)
         ################################################################################################################
         #                                            UPDATE CONVERSATION HISTORY
         ################################################################################################################
@@ -208,6 +210,13 @@ def init_conversation(sender_id, user_utterance):
     #    'messages': conv_map[sender_id]["messages"],
     #    'chatbot_utterance': bot_first_message,
     # })
+
+
+def clean_bot_response(bot_response):
+    string_to_remove = ["En tant que personnage fictif\\s+?,", "un assistant intelligent"]
+    expression_reguliere = re.compile("|".join(string_to_remove), re.IGNORECASE)
+    cleaned_bot_response = expression_reguliere.sub("", bot_response)
+    return cleaned_bot_response
 
 
 @app.route('/kill_conversation', methods=['GET', 'POST'])
