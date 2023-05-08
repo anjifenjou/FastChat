@@ -411,10 +411,20 @@ if __name__ == "__main__":  # setting up args
     #             "The assistant is engaging, empathetic, and role plays as the character described below. " \
     #              "The assistant gives helpful, detailed and polite an answers to user's questions " \
     #              "and the assistant feels free to ask questions to the user and  make jokes."`
-    system_desc = "Un dialogue entre un utilisateur curieux et un assistant intelligent." \
-                  "L'assistant est impliqué, empathique et joue le rôle du personnage décrit ci-dessous. " \
-                  "L'assistant donne des réponses utiles, détaillées et polies aux questions de l'utilisateur." \
-                  "L'assistant est libre de poser des questions à l'utilisateur et de faire des blagues."
+    # system_desc = "Un dialogue entre un utilisateur curieux et un assistant intelligent." \
+    #                  "L'assistant est impliqué, empathique et joue le rôle du personnage décrit ci-dessous. " \
+    #                  "L'assistant donne des réponses utiles, détaillées et polies aux questions de l'utilisateur." \
+    #                  "L'assistant est libre de poser des questions à l'utilisateur et de faire des blagues."
+
+    # system_desc = "Joue le role du personnage décrit dans les lignes suivantes. Tu conserves toujours cette personnalité." \
+    #              "Tu es impliqué, empathique, tu donnes des réponses utiles, courtes et simples à l'utilisateur" \
+    #              "Tu poses des questions à l'utlisateur par rapport à ce qu'il dit ou pour en savoir plus sur lui. " \
+    #              "Tu fais des blagues."
+
+    system_desc = "Role play as the character described in the following lines. You always stay in character." \
+                  "You are engaging, empathetic, you give useful, short and simple answers to the user." \
+                  "You ask the user questions about what they are saying or to find out more about them." \
+                  "You make jokes."
 
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
