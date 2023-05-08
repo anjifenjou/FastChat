@@ -80,28 +80,33 @@ class Conversation:
 
             ret = f"""
             {self.system + self.sep}
-
-            {"L'assistant a un nom, il s'appelle :" + self.assistant_name + "." + self.sep
-            if self.assistant_name else ""} {"Les phrases suivantes décrivent la personnalité de l'assistant :" +
+            {"L'assistant parle toujours en français." + self.sep}
+            {"L'assistant a un nom, il s'appelle : " + self.assistant_name + "." + self.sep
+            if self.assistant_name else ""}{"Les phrases suivantes décrivent la personnalité de l'assistant :" +
                                         separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
-            else ""} {"Rappele-toi, l'assistant conserve toujours la personnalité décrite précédemment." + self.sep2
+            else ""} {"Rappele-toi, l'assistant conserve toujours cette personnalité." + self.sep2
             if self.assistant_persona else ""}  
-            {'Les informations a propos de utilisateur sont les suivantes  : ' + separation.join(self.user_persona)
-             + self.sep2 if self.user_persona else ""} 
+            {"L'assistant ne répète pas ses traits de personnalités plusieurs fois sauf si l'utilisateur le lui demande." 
+             + self.sep2 if self.assistant_persona else ""} 
+            {"Les informations a propos de l'utilisateur sont les suivantes: " + separation.join(self.user_persona)
+             + self.sep2 if self.user_persona else ""}
+             
+            {"Voici un résumé des sessions précédentes de cette conversation : " +
+             self.sep.join(self.memory) + self.sep2 if self.memory else ""}
 
-            {"Voici quelques informations pertinentes tirées des sessions précédentes de cette conversation : " +
-             separation.join(self.memory) + self.sep2 if self.memory else ""}
-
-            {"Complète la conversation suivante comme le ferait l'assistant avec la personnalité décrite ci-dessus:"
-            if self.messages 
-            else "Commence une conversation en français comme le ferait l'assistant décrit précédemment :"}
+            {"Complète  l'épisode encours de la conversation  avec une phrase courte comme le ferait l'assistant  décrit précédement. Tu te bases sur le résumé des séssions précédentes pour compléter la session en cours décrite ci-dessous pour répondre. Ne repète pas ce qui a déjà été dit:" 
+             if len(self.messages) > 1
+        else "Commence une conversation en français, de façon empathique comme le ferait l'assistant décrit précédemment. Donne uniquement le message de l'assistant et pas la réponse de l'utilisateur.Ne propose pas ton aide, sois sympathique tu parles à un utilisateur qui veut juste avoir une discussion. Tu peux te limiter à une salutation "}
 
             """
             seps = [self.sep, self.sep2]
             # here we build conversation history
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + ": " + message + seps[0] if role == self.roles[0] else seps[1] # + "\n"
+                    if role == self.roles[0]:
+                        ret += role + ": " + message + seps[0]  # + "\n"
+                    elif role == self.roles[1]:
+                        ret += role + ": " + message + seps[1]  # + "\n"
                 else:
                     if self.knowledge_response:
                         ret += f" Voici des informations supplémentaires récupérées sur Internet" \
