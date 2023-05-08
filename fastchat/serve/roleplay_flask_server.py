@@ -59,30 +59,31 @@ def user_message():
         ################################################################################################################
         user_persona = conversation.get("user_persona", [])
         if user_persona:
-            request_messages += {"role": "user_persona", "content": '||'.join(user_persona)}
+            request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
 
         ###############################################################################################################
         #                               ACCESSING MEMORY IF CONDITION REACHED (modify history then)
         ###############################################################################################################
-        approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
-        approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
-        # + new_user_persona_length
+        if conv_map[sender_id]["memory"]:  # if there is no memory yet the prompt will just be trimmed by the worker
+            approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
+            approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
+            # + new_user_persona_length
 
-        if approx_new_prompt_length >= prompt_length_threshold:  # access memory when reaching condition
-            # TODO actually we should compare approx_new_prompt_length + max_new_tokens to max context size
-            # prompt_length_threshold  linked to max_new_tokens and max_possible_context of the considered model (LLaMA)
-            conv_map[sender_id]['num_memory_access'] += 1
-            request_memory_content, history = \
-                get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+            if approx_new_prompt_length >= prompt_length_threshold:  # access memory when reaching condition
+                # TODO actually we should compare approx_new_prompt_length + max_new_tokens to max context size
+                # prompt_length_threshold  linked to max_new_tokens and max_possible_context of the considered model (LLaMA)
+                conv_map[sender_id]['num_memory_access'] += 1
+                request_memory_content, history = \
+                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
 
-            request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+                request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
 
-        # send the memories already accessed in preceding turn if the condition for new history is not reached
-        elif conv_map[sender_id]['num_memory_access'] > 0:
-            request_memory_content, history = \
-                get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+            # send the memories already accessed in preceding turn if the condition for new history is not reached
+            elif conv_map[sender_id]['num_memory_access'] > 0:
+                request_memory_content, history = \
+                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
 
-            request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+                request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
 
         ################################################################################################################
         #                                    ADD HISTORY AND SEND REQUEST TO API
@@ -108,8 +109,10 @@ def user_message():
 
         ################################################################################################################
         #                                           USER PERSONA BUILDING MODULE
+        thrshld_len = len(history) + 1 if conv_map[sender_id]["chosen_persona"] else len(history)
+        # in case of chosen persona, user first message is not added to history
         ################################################################################################################
-        if history and len(history) % (num_turn_threshold * 2) == 0:
+        if history and thrshld_len % (num_turn_threshold * 2) == 0:
             # build user persona in this episode:
             # stop = len(history)  # // (num_turn_threshold * 2)
             # start = len(history) - num_turn_threshold * 2
@@ -119,7 +122,7 @@ def user_message():
         ################################################################################################################
         #                                               MEMORY BUILDING MODULE
         ################################################################################################################
-        if history and len(history) % num_turn_threshold == 0:
+        if history and thrshld_len % num_turn_threshold == 0:
             if conv_map[sender_id]["memory"]:
                 start = conv_map[sender_id]["memory"][-1]["stop"]
             else:
@@ -157,7 +160,7 @@ def init_conversation(sender_id, user_utterance):
         A json containing new bot message based on persona.
     """
     assistant_persona = random.choice(pchat_personalities)
-    assistant_name = ""
+    assistant_name = "Vicuna"
     chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
     text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
     if chosen_persona:
@@ -172,7 +175,8 @@ def init_conversation(sender_id, user_utterance):
                            "assistant_name": assistant_name,
                            "messages": [],
                            "last_output_size": 0,
-                           "num_memory_access": 0}
+                           "num_memory_access": 0,
+                           "chosen_persona": chosen_persona is not None}
 
     # Send a request to the API to make the bot start the conversation
     request_msg = [{"role": "request_type", "content": "roleplay_chat"},
@@ -225,9 +229,10 @@ def kill_conversation():
 
 def get_desired_persona(
         user_utterance):  # Dire à l'utlisateur de donner des mots clés pour communiquer le personnage
+    # TODO: may be return string directly instead of list for persona
     get_persona_prompt = f"""
     Dans le texte ci-dessous, vérifie si des éléments par rapport à un nom ou des traits de personnalité sont donnés. 
-    Si c'est le cas retourne les informations au format json avec les champs suivants: name (si applicable) et  persona (une liste de chaines des caractères extraites du texte).
+    Si c'est le cas retourne les informations au format json avec les champs suivants: name (si applicable) et persona (une liste de chaines de caractères décrivant la personalité).
     Si ce n'est pas le cas retourne "None".
 
     Texte:  
@@ -249,6 +254,12 @@ def get_desired_persona(
             chosen_persona = json.loads(persona_response)
             if not isinstance(chosen_persona, dict):  # The case when it is a long string for stating None
                 return None
+            else:
+                if not isinstance(chosen_persona["persona"], list):
+                    if isinstance(chosen_persona["persona"], str):
+                        chosen_persona["persona"] = [chosen_persona["persona"]]
+                    else:
+                        return None
         except JSONDecodeError:
             return None
         return chosen_persona
@@ -281,9 +292,13 @@ def generate_memory(episode, start, stop,
     formatted_episode = ""
     # here we build conversation history
     for i, message in enumerate(episode):
-        formatted_episode += message["role"] + ": " \
-                             + message["content"] \
-                             + seps[1] if message['role'] == 'assistant' else seps[0] + "\n"
+        if message['role'] == 'assistant':
+            formatted_episode += message["role"] + ": " \
+                                 + message["content"] \
+                                 + seps[1]  # + "\n"
+        elif message['role'] == 'user':
+            formatted_episode += message["role"] + ": " \
+                                 + message["content"] + seps[0]  # + "\n"
 
     memory_generation_prompt = f"""
     Rédige un résumé global de la conversation suivante entre un assistant et un utilisateur en une phrase. 
@@ -301,7 +316,7 @@ def generate_memory(episode, start, stop,
 
 
 def get_memory_content(sender_id, memory_index):
-    request_memory_content = [content for content in conv_map[sender_id]["memory"][:memory_index]]
+    request_memory_content = [memory["content"] for memory in conv_map[sender_id]["memory"][:memory_index]]
     new_history_start = conv_map[sender_id]["memory"][:memory_index][-1]["stop"]
     # new_history_start -= 2   # to make sure we have at least
     history = conv_map[sender_id]["messages"][new_history_start:]
@@ -313,9 +328,33 @@ def get_memory_content(sender_id, memory_index):
 def get_search_decision(user_utterance):
     # TODO add a designed search decision prompt later
     search_decision_prompt = f"""
+Check the following text to see if any information is requested.
+Check if an entity you don't know is mentioned.
+Check if an information from the period beyond your knowledge limit (2021) is asked.
+
+If it is the case then generate a query in french for a search based on the text. In this case return only the content of the query preceded by Search. Required format: "Search: query".
+
+If it's not the case then return only: no_search
+
+text=
+"{user_utterance}" 
     """
-    search_decison = False
-    return search_decison
+
+    # completion = client.ChatCompletion.create(
+    #     model="vicuna-13b-v1.1",
+    #     messages=[{"role": "user", "content": search_decision_prompt},
+    #              {"role": "request_type", "content": "submodule_chat"}],
+        # possibility to generated several choice and perform majority vote on search vs no search?
+    # )
+    # search_decison = completion.choices[0].message.content
+
+    # if search_decison.lower().strip() == 'no_search':
+    #    return False
+    # else:
+    #    query = search_decison.split(":")[-1]
+    #    # TODO SEND THE QUERY TO A SEARCH SERVER
+    #    return query
+    return False
 
 
 def generate_knowledge_response(user_utterance):  # Call a search server
