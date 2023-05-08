@@ -98,7 +98,7 @@ class Conversation:
              
              
             {"Complete the following conversation with a short sentence as your character would :"  
-            if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Wrtie your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a chat. You can limit yourself to a greeting:"}
+            if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a chat. You can limit yourself to a greeting:"}
 
             """
             seps = [self.sep, self.sep2]
