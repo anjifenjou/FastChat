@@ -94,7 +94,7 @@ class Conversation:
              
             {"Voici un résumé des sessions précédentes de cette conversation : " +
              self.sep.join(self.memory)  if self.memory else ""}
-            {"Tu te bases sur le résumé des séssions précédentes pour compléter la conversation en cours ci-dessous."
+            {"Utilise les informations de ce résumé des séssions précédentes pour compléter la conversation ci-dessous."
             + self.sep2 if self.memory else ""}
             {"Complète  la suite de cette conversation avec une phrase courte comme le ferait ton personnage, sans repéter ce qui a déjà été dit:"  if len(self.messages) > 1
         else "Commence une conversation en français, de façon empathique comme le ferait le personnage décrit précédemment. Donne uniquement ton message et pas la réponse de l'utilisateur. Ne propose pas ton aide, sois sympathique tu parles à un utilisateur qui veut juste avoir une discussion. Tu peux te limiter à une salutation "}
