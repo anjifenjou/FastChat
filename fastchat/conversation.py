@@ -70,6 +70,7 @@ class Conversation:
         # New
 
         if self.roleplay:  # currently supports Vicuna only
+            # print(self.messages)
             assert "vicuna" in self.model_name.lower(), f"Roleplay is only available for Vicuna"
             assert self.sep_style == SeparatorStyle.ADD_COLON_TWO, f"Invalid style: {self.sep_style} for vicuna_v1_1"
             separation = "." + f"{self.sep}"
@@ -80,23 +81,23 @@ class Conversation:
 
             ret = f"""
             {self.system + self.sep}
-            {"L'assistant parle toujours en français." + self.sep}
-            {"L'assistant a un nom, il s'appelle : " + self.assistant_name + "." + self.sep
-            if self.assistant_name else ""}{"Les phrases suivantes décrivent la personnalité de l'assistant :" +
+            {"Tu parles toujours en français." + self.sep}
+            {"Tu as un nom qui est : " + self.assistant_name + "." + self.sep
+            if self.assistant_name else ""}{"Les phrases suivantes décrivent ta personalité :" +
                                         separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
-            else ""} {"Rappele-toi, l'assistant conserve toujours cette personnalité." + self.sep2
-            if self.assistant_persona else ""}  
-            {"L'assistant ne répète pas ses traits de personnalités plusieurs fois sauf si l'utilisateur le lui demande." 
+            else ""} {"Rappelle-toi, de toujours conserver cette personnalité. Tu es un personnage pas un assistant, pas un chatbot" 
+                      + self.sep2 if self.assistant_persona else ""}  
+            {"Ne répète pas tes traits de personnalité plusieurs fois sauf si l'utilisateur te le demande." 
              + self.sep2 if self.assistant_persona else ""} 
-            {"Les informations a propos de l'utilisateur sont les suivantes: " + separation.join(self.user_persona)
-             + self.sep2 if self.user_persona else ""}
+            {"Les informations a que tu as sur de l'utilisateur les suivantes: " + separation.join(self.user_persona)
+             + "utilise les pour adapter ta conversation a lui" + self.sep2 if self.user_persona else ""}
              
             {"Voici un résumé des sessions précédentes de cette conversation : " +
-             self.sep.join(self.memory) + self.sep2 if self.memory else ""}
-
-            {"Complète  l'épisode encours de la conversation  avec une phrase courte comme le ferait l'assistant  décrit précédement. Tu te bases sur le résumé des séssions précédentes pour compléter la session en cours décrite ci-dessous pour répondre. Ne repète pas ce qui a déjà été dit:" 
-             if len(self.messages) > 1
-        else "Commence une conversation en français, de façon empathique comme le ferait l'assistant décrit précédemment. Donne uniquement le message de l'assistant et pas la réponse de l'utilisateur.Ne propose pas ton aide, sois sympathique tu parles à un utilisateur qui veut juste avoir une discussion. Tu peux te limiter à une salutation "}
+             self.sep.join(self.memory)  if self.memory else ""}
+            {"Tu te bases sur le résumé des séssions précédentes pour compléter la conversation en cours ci-dessous."
+            + self.sep2 if self.memory else ""}
+            {"Complète  la suite de cette conversation avec une phrase courte comme le ferait ton personnage, sans repéter ce qui a déjà été dit:"  if len(self.messages) > 1
+        else "Commence une conversation en français, de façon empathique comme le ferait le personnage décrit précédemment. Donne uniquement ton message et pas la réponse de l'utilisateur. Ne propose pas ton aide, sois sympathique tu parles à un utilisateur qui veut juste avoir une discussion. Tu peux te limiter à une salutation "}
 
             """
             seps = [self.sep, self.sep2]
@@ -107,6 +108,7 @@ class Conversation:
                         ret += role + ": " + message + seps[0]  # + "\n"
                     elif role == self.roles[1]:
                         ret += role + ": " + message + seps[1]  # + "\n"
+                        # ret += self.assistant_name + ": " + message + seps[1]  # + "\n"
                 else:
                     if self.knowledge_response:
                         ret += f" Voici des informations supplémentaires récupérées sur Internet" \

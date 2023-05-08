@@ -183,7 +183,9 @@ def init_conversation(sender_id, user_utterance):
                    {"role": "system", "content": system_desc},
                    {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
                    {"role": "assistant_name", "content": conv_map[sender_id]["assistant_name"]},
-                   ] + [] if chosen_persona else [{"role": "user", "content": user_utterance}]
+                   ]
+    if not chosen_persona:
+        request_msg += [{"role": "user", "content": user_utterance}]
     # if the first user_utterance was to define the persona, we don't send it in the request and the
     # assistant will start the conversation
 
@@ -257,7 +259,10 @@ def get_desired_persona(
             else:
                 if not isinstance(chosen_persona["persona"], list):
                     if isinstance(chosen_persona["persona"], str):
-                        chosen_persona["persona"] = [chosen_persona["persona"]]
+                        if chosen_persona["persona"].strip().lower() == "none":
+                            return None
+                        else:
+                            chosen_persona["persona"] = [chosen_persona["persona"]]
                     else:
                         return None
         except JSONDecodeError:
