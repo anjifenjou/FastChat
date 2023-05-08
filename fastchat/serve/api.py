@@ -9,7 +9,7 @@ Reference: https://platform.openai.com/docs/api-reference/chat/create
 """
 import asyncio
 from typing import Union, Dict, List, Any
-
+import os
 import argparse
 import json
 import logging
@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 class AppSettings(BaseSettings):
     # The address of the model controller.
-    FASTCHAT_CONTROLLER_URL: str = "http://localhost:21001"
+    #FASTCHAT_CONTROLLER_URL: str = "http://localhost:21001"
+    FASTCHAT_CONTROLLER_URL = os.getenv("FASTCHAT_CONTROLLER_URL")
 
 
 app_settings = AppSettings()
@@ -145,7 +146,7 @@ def get_gen_params(
 
     if max_tokens is None:
         max_tokens = 512
-
+    print(prompt)
     gen_params = {
         "model": model_name,
         "prompt": prompt,
