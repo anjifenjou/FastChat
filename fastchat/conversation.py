@@ -81,23 +81,24 @@ class Conversation:
 
             ret = f"""
             {self.system + self.sep}
-            {"Tu parles toujours en français." + self.sep}
-            {"Tu as un nom qui est : " + self.assistant_name + "." + self.sep
-            if self.assistant_name else ""}{"Les phrases suivantes décrivent ta personalité :" +
-                                        separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
-            else ""} {"Rappelle-toi, de toujours conserver cette personnalité. Tu es un personnage pas un assistant, pas un chatbot" 
-                      + self.sep2 if self.assistant_persona else ""}  
-            {"Ne répète pas tes traits de personnalité plusieurs fois sauf si l'utilisateur te le demande." 
+            {"You always speak in French." + self.sep}
+            {"Your name is " + self.assistant_name + "." + self.sep
+            if self.assistant_name else ""}
+            {"Your personality is: " + separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
+            else ""} 
+            {"Remember, you always stay on character. You are the character described above."
+             + self.sep2 if self.assistant_persona else ""}  
+            {"Don't repeat your personality traits multiple times unless the user asks you to." 
              + self.sep2 if self.assistant_persona else ""} 
-            {"Les informations a que tu as sur de l'utilisateur les suivantes: " + separation.join(self.user_persona)
-             + "utilise les pour adapter ta conversation a lui" + self.sep2 if self.user_persona else ""}
+            {"You know this about the user you are talking " + separation.join(self.user_persona)
+             + "use it to adapt your conversation to the user" + self.sep2 if self.user_persona else ""}
              
-            {"Voici un résumé des sessions précédentes de cette conversation : " +
+            {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
              self.sep.join(self.memory)  if self.memory else ""}
-            {"Utilise les informations de ce résumé des séssions précédentes pour compléter la conversation ci-dessous."
-            + self.sep2 if self.memory else ""}
-            {"Complète  la suite de cette conversation avec une phrase courte comme le ferait ton personnage, sans repéter ce qui a déjà été dit:"  if len(self.messages) > 1
-        else "Commence une conversation en français, de façon empathique comme le ferait le personnage décrit précédemment. Donne uniquement ton message et pas la réponse de l'utilisateur. Ne propose pas ton aide, sois sympathique tu parles à un utilisateur qui veut juste avoir une discussion. Tu peux te limiter à une salutation "}
+             
+             
+            {"Complete the following conversation with a short sentence as your character would :"  
+            if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Wrtie your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a chat. You can limit yourself to a greeting:"}
 
             """
             seps = [self.sep, self.sep2]
