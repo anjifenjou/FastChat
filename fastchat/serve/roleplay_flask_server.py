@@ -70,9 +70,8 @@ def user_message():
             approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
             # + new_user_persona_length
 
-            if approx_new_prompt_length >= prompt_length_threshold:  # access memory when reaching condition
-                # TODO actually we should compare approx_new_prompt_length + max_new_tokens to max context size
-                # prompt_length_threshold  linked to max_new_tokens and max_possible_context of the considered model (LLaMA)
+            if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
+                # 2048 is the max context length of LLaMA
                 conv_map[sender_id]['num_memory_access'] += 1
                 request_memory_content, history = \
                     get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
@@ -99,6 +98,7 @@ def user_message():
         )
 
         tokens_usage = completion.choices[0].usage  # usage is now in choices
+        print(tokens_usage)
         bot_response = completion.choices[0].message.content
         print(f"Uncleaned bot response: {bot_response}")
         bot_response = clean_bot_response(bot_response)
@@ -162,8 +162,9 @@ def init_conversation(sender_id, user_utterance):
         A json containing new bot message based on persona.
     """
     assistant_persona = random.choice(pchat_personalities)
-    assistant_name = "Vicuna"
-    chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
+    assistant_name = ""
+    # chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
+    chosen_persona = False
     text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
     if chosen_persona:
         assistant_persona = chosen_persona.get("persona", assistant_persona)
@@ -178,7 +179,8 @@ def init_conversation(sender_id, user_utterance):
                            "messages": [],
                            "last_output_size": 0,
                            "num_memory_access": 0,
-                           "chosen_persona": chosen_persona is not None}
+                           # "chosen_persona": chosen_persona is not None}
+                           "chosen_persona": chosen_persona}
 
     # Send a request to the API to make the bot start the conversation
     request_msg = [{"role": "request_type", "content": "roleplay_chat"},
@@ -213,9 +215,11 @@ def init_conversation(sender_id, user_utterance):
 
 
 def clean_bot_response(bot_response):
-    string_to_remove = ["En tant que personnage fictif\\s+?,", "un assistant intelligent"]
-    expression_reguliere = re.compile("|".join(string_to_remove), re.IGNORECASE)
-    cleaned_bot_response = expression_reguliere.sub("", bot_response)
+    bot_response = bot_response.strip()
+    string_to_remove = ["En tant que personnage fictif\\s+?,", "un assistant intelligent",
+                        "en tant que \\w+\\s?,"]
+    expression_regulieres = re.compile("|".join(string_to_remove), re.IGNORECASE)
+    cleaned_bot_response = expression_regulieres.sub("", bot_response)
     return cleaned_bot_response
 
 
