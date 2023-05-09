@@ -67,11 +67,12 @@ def user_message():
         ###############################################################################################################
         if conv_map[sender_id]["memory"]:  # if there is no memory yet the prompt will just be trimmed by the worker
             approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
+            # TODO import the LLaMA tokenizer here (to have exact count)
             approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
             # + new_user_persona_length
 
             if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
-                # 2048 is the max context length of LLaMA
+                # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
                 conv_map[sender_id]['num_memory_access'] += 1
                 request_memory_content, history = \
                     get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
@@ -215,9 +216,12 @@ def init_conversation(sender_id, user_utterance):
 
 
 def clean_bot_response(bot_response):
+    # TODO: report in a the paper
     bot_response = bot_response.strip()
     string_to_remove = ["En tant que personnage fictif\\s+?,", "un assistant intelligent",
-                        "en tant que \\w+\\s?,"]
+                        "en tant que \\w+\\s?,",
+                        "en tant que\\s+\\S[\\S\\s]*?,"]
+
     expression_regulieres = re.compile("|".join(string_to_remove), re.IGNORECASE)
     cleaned_bot_response = expression_regulieres.sub("", bot_response)
     return cleaned_bot_response

@@ -82,7 +82,7 @@ class Conversation:
             ret = f"""
             {self.system + self.sep}
             {"You always speak in French." + self.sep}
-            {"You act like a regular person. You are not a chabot, your are not an assistant."}
+            {"You act like a regular person. You are not a chabot, your are not an assistant, you are not a computer program"}
             {"You have a name."}
             {"Your name is " + self.assistant_name + "." + self.sep
             if self.assistant_name else ""}
@@ -99,7 +99,7 @@ class Conversation:
              self.sep.join(self.memory)  if self.memory else ""}
              
              
-            {"Complete the following conversation with a short sentence as your character would :"  
+            {"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"  
             if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a chat. You can limit yourself to a greeting:"}
 
             """
