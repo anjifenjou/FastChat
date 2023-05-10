@@ -219,8 +219,8 @@ def clean_bot_response(bot_response):
     # TODO: report in a the paper
     bot_response = bot_response.strip()
     string_to_remove = ["En tant que personnage fictif\\s+?,", "un assistant intelligent",
-                        "en tant que \\w+\\s?,",
-                        "en tant que\\s+\\S[\\S\\s]*?,"]
+                        "en tant qu['e] \\w+\\s?,",
+                        "en tant qu['e](\\s+)?\\S[\\S\\s]*?,"]
 
     expression_regulieres = re.compile("|".join(string_to_remove), re.IGNORECASE)
     cleaned_bot_response = expression_regulieres.sub("", bot_response)

@@ -92,8 +92,8 @@ class Conversation:
              + self.sep2 if self.assistant_persona else ""}  
             {"Don't repeat your personality traits multiple times unless the user asks you to." 
              + self.sep2 if self.assistant_persona else ""} 
-            {"You know this about the user you are talking " + separation.join(self.user_persona)
-             + "use it to adapt your conversation to the user" + self.sep2 if self.user_persona else ""}
+            {"You know this about the user you are talking to: " + separation.join(self.user_persona)
+             + ". Use it to adapt your conversation to the user" + self.sep2 if self.user_persona else ""}
              
             {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
              self.sep.join(self.memory)  if self.memory else ""}
