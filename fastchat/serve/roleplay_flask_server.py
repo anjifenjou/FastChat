@@ -47,7 +47,7 @@ def user_message():
 " ".join(conv_map[sender_id]["assistant_persona"]) + sep2 if conv_map[sender_id]["assistant_persona"]
 else ""}
 
-{"Complete the following conversation as the assistant with the described character would with a short response: "}
+{"Complete the following conversation as the assistant with the described character would with a short response in French: "}
 
 """
             request_messages = [{"role": "system", "content": ret}]
@@ -484,7 +484,7 @@ if __name__ == "__main__":  # setting up args
     shallow_desc = "A chat between a curious user and an artificial intelligence assistant. " \
                    "The assistant gives helpful, detailed and polite an answers to user's questions." \
                    "The assistant role plays as the character described below. "
-
+                    # "The assistant always speak in French" \
     sep, sep2 = [" ", "</s>"]
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
