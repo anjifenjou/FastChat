@@ -226,7 +226,7 @@ def init_conversation(sender_id, user_utterance):
  " ".join(conv_map[sender_id]["assistant_persona"]) + sep2 if conv_map[sender_id]["assistant_persona"]
 else ""}
 
-{"Complete the following conversation as the assistant with the described character would with a short response: "}
+{"Complete the following conversation as the assistant with the described character would with a short response in French: "}
 
 """
         request_msg = [{"role": "system", "content": ret}]
