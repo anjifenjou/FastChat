@@ -30,61 +30,76 @@ def user_message():
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
-        bot_response = clean_bot_response(init_conversation(user_utterance=user_utterance, sender_id=sender_id))
+        bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
+        if not get_bool(args.shallow_roleplay):
+            bot_response = clean_bot_response(bot_response)
 
     else:
-        conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
-        conversation = conv_map[sender_id]
-        history = conversation["messages"]
-        request_messages = [{"role": "request_type", "content": "roleplay_chat"},
-                            {"role": "system", "content": system_desc}]
+        if get_bool(args.shallow_roleplay):
+            ret = f"""
+{shallow_desc + sep}
 
-        # TODO we should test search module here or later after model first response try (depending of what its says)
-        ################################################################################################################
-        #                                                  SEARCH MODULE
-        ################################################################################################################
-        search_decision = get_search_decision(user_utterance)
-        if search_decision:
-            knowledge_response = generate_knowledge_response(user_utterance)
-            request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
+{"The following sentences describe assistant personality and background: " +
+" ".join(conv_map[sender_id]["assistant_persona"]) + sep2 if conv_map[sender_id]["assistant_persona"]
+else ""}
 
-        ################################################################################################################
-        #                                         ADDING ASSISTANT PERSONA TRAITS IN THE REQUEST
-        ################################################################################################################
-        request_messages += [
-            {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-            {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
+{"Complete the following conversation as the assistant with the described character would with a short response: "}
 
-        ###############################################################################################################
-        #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
-        ################################################################################################################
-        user_persona = conversation.get("user_persona", [])
-        if user_persona:
-            request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
+"""
+            request_messages = [{"role": "system", "content": ret}]
+        else:
+            conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
+            conversation = conv_map[sender_id]
+            history = conversation["messages"]
+            request_messages = [{"role": "request_type", "content": "roleplay_chat"},
+                                {"role": "system", "content": system_desc}]
 
-        ###############################################################################################################
-        #                               ACCESSING MEMORY IF CONDITION REACHED (modify history then)
-        ###############################################################################################################
-        if conv_map[sender_id]["memory"]:  # if there is no memory yet the prompt will just be trimmed by the worker
-            approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
-            # TODO import the LLaMA tokenizer here (to have exact count)
-            approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
-            # + new_user_persona_length
+            # TODO we should test search module here or later after model first response try (depending of what its says)
+            ################################################################################################################
+            #                                                  SEARCH MODULE
+            ################################################################################################################
+            search_decision = get_search_decision(user_utterance)
+            if search_decision:
+                knowledge_response = generate_knowledge_response(user_utterance)
+                request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
 
-            if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
-                # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
-                conv_map[sender_id]['num_memory_access'] += 1
-                request_memory_content, history = \
-                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+            ################################################################################################################
+            #                                         ADDING ASSISTANT PERSONA TRAITS IN THE REQUEST
+            ################################################################################################################
+            request_messages += [
+                {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
+                {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
 
-                request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+            ###############################################################################################################
+            #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
+            ################################################################################################################
+            user_persona = conversation.get("user_persona", [])
+            if user_persona:
+                request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
 
-            # send the memories already accessed in preceding turn if the condition for new history is not reached
-            elif conv_map[sender_id]['num_memory_access'] > 0:
-                request_memory_content, history = \
-                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+            ###############################################################################################################
+            #                               ACCESSING MEMORY IF CONDITION REACHED (modify history then)
+            ###############################################################################################################
+            if conv_map[sender_id]["memory"]:  # if there is no memory yet the prompt will just be trimmed by the worker
+                approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
+                # TODO import the LLaMA tokenizer here (to have exact count)
+                approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
+                # + new_user_persona_length
 
-                request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+                if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
+                    # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
+                    conv_map[sender_id]['num_memory_access'] += 1
+                    request_memory_content, history = \
+                        get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+
+                    request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+
+                # send the memories already accessed in preceding turn if the condition for new history is not reached
+                elif conv_map[sender_id]['num_memory_access'] > 0:
+                    request_memory_content, history = \
+                        get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+
+                    request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
 
         ################################################################################################################
         #                                    ADD HISTORY AND SEND REQUEST TO API
@@ -183,12 +198,24 @@ def init_conversation(sender_id, user_utterance):
                            # "chosen_persona": chosen_persona is not None}
                            "chosen_persona": chosen_persona}
 
-    # Send a request to the API to make the bot start the conversation
-    request_msg = [{"role": "request_type", "content": "roleplay_chat"},
-                   {"role": "system", "content": system_desc},
-                   {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-                   {"role": "assistant_name", "content": conv_map[sender_id]["assistant_name"]},
-                   ]
+    if get_bool(args.shallow_roleplay):
+        ret = f"""
+{shallow_desc + sep}
+
+{"The following sentences describe assistant personality and background: " +
+ " ".join(conv_map[sender_id]["assistant_persona"]) + sep2 if conv_map[sender_id]["assistant_persona"]
+else ""}
+
+{"Complete the following conversation as the assistant with the described character would with a short response: "}
+
+"""
+        request_msg = [{"role": "system", "content": ret}]
+    else:
+        request_msg = [{"role": "request_type", "content": "roleplay_chat"},
+                       {"role": "system", "content": system_desc},
+                       {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
+                       {"role": "assistant_name", "content": conv_map[sender_id]["assistant_name"]}]
+
     if not chosen_persona:
         request_msg += [{"role": "user", "content": user_utterance}]
     # if the first user_utterance was to define the persona, we don't send it in the request and the
@@ -223,9 +250,14 @@ def clean_bot_response(bot_response):
                         "en tant qu['e](\\s+)?\\S[\\S\\s]*?,"]
 
     expression_regulieres = re.compile("|".join(string_to_remove), re.IGNORECASE)
+    quotes = [r'^"(.*)"$', r"^'(.*)'$", r"^'''(.*)'''$"]
+    quotes = re.compile("|".join(quotes), re.IGNORECASE)
     cleaned_bot_response = expression_regulieres.sub("", bot_response)
+    cleaned_bot_response = quotes.sub(r'\1', cleaned_bot_response)
     return cleaned_bot_response
 
+def get_bool(toto):
+    return str(toto).lower().strip() == "true"
 
 @app.route('/kill_conversation', methods=['GET', 'POST'])
 def kill_conversation():
@@ -323,10 +355,10 @@ def generate_memory(episode, start, stop,
                                  + message["content"] + seps[0]  # + "\n"
 
     memory_generation_prompt = f"""
-    Rédige un résumé global de la conversation suivante entre un assistant et un utilisateur en une phrase. 
-    Le résumé doit comporter des informations pertinentes et ne doit pas commencer par "dans cette conversation".
+Rédige un résumé global de la conversation suivante entre un assistant et un utilisateur en une phrase. 
+Le résumé doit comporter des informations pertinentes et ne doit pas commencer par "dans cette conversation".
 
-    {formatted_episode}
+{formatted_episode}
 """
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
@@ -405,10 +437,12 @@ def init_app_parameters():
                         help="Address of the search server, use to query the web when needed")
     parser.add_argument("--api_address", type=str,
                         help="Address of API to which the request are sent")
-    parser.add_argument("--host", type=str, default=None,
+    parser.add_argument("--host", type=str, default="0.0.0.0",
                         help="Address of the flask_server host")
     parser.add_argument("--port", type=str, default=None,
                         help="port of the flask_server ")
+    parser.add_argument("--shallow_roleplay", type=str, default="False",
+                        help="Wether or not to run a shallow prompt version of the roleplay.")
     args = parser.parse_args()
     # PERSONALITIES
     data_path = args.data_path
@@ -443,6 +477,11 @@ if __name__ == "__main__":  # setting up args
                   "You ask the user questions about what they are saying or to find out more about them." \
                   "You make jokes."
 
+    shallow_desc = "A chat between a curious user and an artificial intelligence assistant. " \
+                   "The assistant gives helpful, detailed and polite an answers to user's questions." \
+                   "The assistant role plays as the character described below. "
+
+    sep, sep2 = [" ", "</s>"]
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
     approx_tokens_per_word = args.approx_tokens_per_word
