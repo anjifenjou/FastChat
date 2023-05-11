@@ -82,7 +82,7 @@ class Conversation:
             ret = f"""
             {self.system + self.sep}
             {"You always speak in French." + self.sep}
-            {"You act like a regular person. You are not a chatbot, your are not an assistant, you are not a computer program"}
+            {"You act like a regular person. You are not a chabot, your are not an assistant, you are not a computer program"}
             {"You have a name."}
             {"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else ""}
             {"Your personality is: " + separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
