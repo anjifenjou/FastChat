@@ -35,6 +35,10 @@ def user_message():
             bot_response = clean_bot_response(bot_response)
 
     else:
+        conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
+        conversation = conv_map[sender_id]
+        history = conversation["messages"]
+
         if get_bool(args.shallow_roleplay):
             ret = f"""
 {shallow_desc + sep}
@@ -48,9 +52,6 @@ else ""}
 """
             request_messages = [{"role": "system", "content": ret}]
         else:
-            conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
-            conversation = conv_map[sender_id]
-            history = conversation["messages"]
             request_messages = [{"role": "request_type", "content": "roleplay_chat"},
                                 {"role": "system", "content": system_desc}]
 
