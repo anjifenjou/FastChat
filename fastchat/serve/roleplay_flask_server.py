@@ -36,6 +36,7 @@ def user_message():
 
     else:
         conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
+        conv_map[sender_id]["num_user_turns"] += 1
         conversation = conv_map[sender_id]
         history = conversation["messages"]
 
@@ -158,6 +159,7 @@ else ""}
             'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
             'messages': conv_map[sender_id]["messages"],
             'chatbot_utterance': bot_response,
+            'num_user_turns': conv_map[sender_id]["num_user_turns"],
         }
     )
 
@@ -216,7 +218,8 @@ def init_conversation(sender_id, user_utterance):
                            "last_output_size": 0,
                            "num_memory_access": 0,
                            # "chosen_persona": chosen_persona is not None}
-                           "chosen_persona": chosen_persona}
+                           "chosen_persona": chosen_persona,
+                           "num_user_turns": 0}
 
     if get_bool(args.shallow_roleplay):
         ret = f"""
@@ -238,6 +241,7 @@ else ""}
 
     if not chosen_persona:
         request_msg += [{"role": "user", "content": user_utterance}]
+        conv_map[sender_id]["num_user_turns"] += 1
     # if the first user_utterance was to define the persona, we don't send it in the request and the
     # assistant will start the conversation
 
