@@ -82,22 +82,42 @@ class Conversation:
             ret = f"""
             {self.system + self.sep}
             {"You always speak in French." + self.sep}
-            {"You act like a regular person. You are not a chabot, your are not an assistant, you are not a computer program"}
-            {"You have a name."}
+            {"You act like a regular person. You are not a chabot. You are not an assistant, You are not a computer program."}
+            {"You have a name. "}
+            """
+
+            if self.assistant_name:
+                ret += f"""
             {"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else ""}
-            {"Your personality is: " + separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona
-            else ""} 
+            """
+            else:
+                ret += f"""
+            {"Your name is adapted to your personality described below."}
+            """
+
+            if self.assistant_persona:
+                ret += f"""
+            {"Your personality is: " + separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona else ""}
             {"Remember, you always stay on character. You are the character described above."
-             + self.sep2 if self.assistant_persona else ""}  
+            + self.sep2 if self.assistant_persona else ""}   
             {"Don't repeat your personality traits multiple times unless the user asks you to." 
-             + self.sep2 if self.assistant_persona else ""} 
-            {"You know this about the user you are talking to: " + separation.join(self.user_persona)
-             + ". Use it to adapt your conversation to the user" + self.sep2 if self.user_persona else ""}
-             
+            + self.sep2 if self.assistant_persona else ""}
+            """
+
+            if self.user_persona:
+                ret += f"""
+            {"You know this about the user you are talking to: " + separation.join(self.user_persona) 
+            + ". Use it to adapt your conversation to the user" + self.sep2 if self.user_persona else ""}
+            """
+
+            if self.memory:
+                ret += f"""
             {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
              self.sep.join(self.memory)  if self.memory else ""}
+             """
              
              
+            ret+= f"""
             {"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"  
             if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a chat. You can limit yourself to a greeting:"}
 
