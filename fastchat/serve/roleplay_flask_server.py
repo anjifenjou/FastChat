@@ -162,6 +162,25 @@ else ""}
     )
 
 
+@app.route('/kill_conversation', methods=['GET', 'POST'])
+def kill_conversation():
+    json_query = request.get_json(force=True, silent=False)
+    if isinstance(json_query, str):
+        json_query = json.loads(json_query)
+    sender_id = json_query['sender_id']
+
+    if sender_id in conv_map.keys():
+        del conv_map[sender_id]
+
+    return jsonify(
+        {
+            'uuid': None,
+            'messages': [],
+            'chatbot_utterance': "",
+        }
+    )
+
+
 def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
     if isinstance(utterance, str):
         return len(nltk_tokenizer.tokenize(utterance))
@@ -235,6 +254,7 @@ else ""}
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
 
+    print(f"Uncleaned bot first message: {bot_first_message}")
     return bot_first_message
     # jsonify({
     #    'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
@@ -257,26 +277,9 @@ def clean_bot_response(bot_response):
     cleaned_bot_response = quotes.sub(r'\1', cleaned_bot_response)
     return cleaned_bot_response
 
+
 def get_bool(toto):
     return str(toto).lower().strip() == "true"
-
-@app.route('/kill_conversation', methods=['GET', 'POST'])
-def kill_conversation():
-    json_query = request.get_json(force=True, silent=False)
-    if isinstance(json_query, str):
-        json_query = json.loads(json_query)
-    sender_id = json_query['sender_id']
-
-    if sender_id in conv_map.keys():
-        del conv_map[sender_id]
-
-    return jsonify(
-        {
-            'uuid': None,
-            'messages': [],
-            'chatbot_utterance': "",
-        }
-    )
 
 
 def get_desired_persona(
