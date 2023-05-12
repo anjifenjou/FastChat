@@ -80,12 +80,11 @@ class Conversation:
             # self.observed_image_captions = [caption.split('.')[0].strip() for caption in self.observed_image_captions]
 
             ret = f"""
-            {self.system + self.sep}
-            {"You SHALL ALWAYS respond in French." + self.sep}
-            {"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
-            {"You have a name. "}{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else 
-            "If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."} 
-            """
+{self.system + self.sep}
+{"You SHALL ALWAYS respond in French." + self.sep}
+{"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
+{"You have a name. "}{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else 
+"If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}"""
 
             #if self.assistant_name:
             #    ret += f"""
@@ -98,31 +97,28 @@ class Conversation:
 
             if self.assistant_persona:
                 ret += f"""
-            {"Your personality is: " + separation.join(self.assistant_persona) + self.sep2 if self.assistant_persona else ""}
-            {"Remember, you always stay on character. You are the character described above."
-            + self.sep2 if self.assistant_persona else ""}   
-            {"Don't repeat your personality traits multiple times unless the user asks you to." 
-            + self.sep2 if self.assistant_persona else ""}
+{"YOUR personality is: " + separation.join(self.assistant_persona) if self.assistant_persona else ""}
+{"Remember, you always stay on character. You are the character described above." if self.assistant_persona else ""}   
             """
 
             if self.user_persona:
                 ret += f"""
-            {"You know this about the user you are talking to: " + separation.join(self.user_persona) 
-            + ". Use it to adapt your conversation to the user" + self.sep2 if self.user_persona else ""}
-            """
+{"You know this about the user you are talking to: " + separation.join(self.user_persona) 
++ ". Use it to adapt your conversation to the user" if self.user_persona else ""}
+"""
 
             if self.memory:
                 ret += f"""
-            {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
-             self.sep.join(self.memory)  if self.memory else ""}
-             """
+{"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
+self.sep.join(self.memory)  if self.memory else ""}
+"""
              
              
             ret+= f"""
-            {"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"  
-            if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. You can limit yourself to a greeting:"}
+{"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"  
+if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. You can limit yourself to a greeting:"}
 
-            """
+"""
             seps = [self.sep, self.sep2]
             # here we build conversation history
             for i, (role, message) in enumerate(self.messages):
