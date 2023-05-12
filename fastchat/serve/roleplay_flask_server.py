@@ -11,6 +11,8 @@ from nltk.tokenize import RegexpTokenizer
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 import re
+from langdetect import detect, detect_langs, DetectorFactory
+
 
 conv_map = {}  # a dictionary of active conversations
 
@@ -109,17 +111,25 @@ else ""}
         request_messages += history
 
         # Send a request to the API
-        completion = client.ChatCompletion.create(
-            model="vicuna-13b-v1.1",
-            messages=request_messages,
-            max_tokens=args.max_new_tokens,  # added as the model tends to talk too much
-        )
+        response_with_complete_sentence = None
+        while response_with_complete_sentence is None:
+            completion = client.ChatCompletion.create(
+                model="vicuna-13b-v1.1",
+                messages=request_messages,
+                max_tokens=args.max_new_tokens,  # added as the model tends to talk too much
+            )
+
+            uncleaned_response = completion.choices[0].message.content
+            bot_response = clean_bot_response(uncleaned_response)
+            response_with_complete_sentence = remove_incomplete_sentence(bot_response)
+
+        bot_response = response_with_complete_sentence
 
         tokens_usage = completion.choices[0].usage  # usage is now in choices
         print(tokens_usage)
-        bot_response = completion.choices[0].message.content
-        print(f"Uncleaned bot response: {bot_response}")
-        bot_response = clean_bot_response(bot_response)
+
+        print(f"Uncleaned bot response: {uncleaned_response}")
+        # bot_response = clean_bot_response(bot_response)
         ################################################################################################################
         #                                            UPDATE CONVERSATION HISTORY
         ################################################################################################################
@@ -191,6 +201,18 @@ def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
         return 0
 
 
+def detect_majority_language(text):
+    """
+    Detect if there is more than one language, and french is not most present regenerate
+    """
+    DetectorFactory.seed = 0
+    languages = detect_langs(text)
+
+    majority_language = max(languages, key=lambda lang: lang.prob)
+    print(f'Language is: {majority_language.lang} and probability is: {majority_language.prob:.2f}')
+    return majority_language.lang, majority_language.prob
+
+
 def init_conversation(sender_id, user_utterance):
     """
     This function initialize the conversation metadata (persona, name, etc.)
@@ -245,20 +267,47 @@ else ""}
     # if the first user_utterance was to define the persona, we don't send it in the request and the
     # assistant will start the conversation
 
-    completion = client.ChatCompletion.create(
-        model="vicuna-13b-v1.1",
-        messages=request_msg,
+    response_with_complete_sentence = None
+    #completion = client.ChatCompletion.create(
+     #   model="vicuna-13b-v1.1",
+      #  messages=request_msg,
         # n=3 if chosen_persona else 1,
-        max_tokens=50  # force the bot t0 start with a short message
-    )
+       # max_tokens=50  # force the bot t0 start with a short message
+    #)
+    #bot_first_message = completion.choices[0].message.content
+    # bot_first_message = clean_bot_response(bot_first_message)
 
-    bot_first_message = completion.choices[0].message.content
+    while response_with_complete_sentence is None:
+        completion = client.ChatCompletion.create(
+            model="vicuna-13b-v1.1",
+            messages=request_msg,
+            # n=3 if chosen_persona else 1,
+            max_tokens=50  # force the bot t0 start with a short message
+        )
+        bot_first_message = completion.choices[0].message.content
+        bot_first_message = clean_bot_response(bot_first_message)
+        response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
+
+    bot_first_message = response_with_complete_sentence
+    lang, prob = detect_majority_language(bot_first_message)
+    while lang != 'fr' or prob < 0.60:
+        completion = client.ChatCompletion.create(
+            model="vicuna-13b-v1.1",
+            messages=request_msg,
+            # n=3 if chosen_persona else 1,
+            max_tokens=50  # force the bot t0 start with a short message
+        )
+        uncleaned_first_message = completion.choices[0].message.content
+        bot_first_message = clean_bot_response(uncleaned_first_message)
+        lang, prob = detect_majority_language(bot_first_message)
+
     tokens_usage = completion.choices[0].usage
     conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
 
-    print(f"Uncleaned bot first message: {bot_first_message}")
+    print(f"Uncleaned bot first message: {uncleaned_first_message}")
+
     return bot_first_message
     # jsonify({
     #    'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
@@ -267,12 +316,32 @@ else ""}
     # })
 
 
+def remove_incomplete_sentence(text):
+    text = text.strip()
+    print(text[-1])
+
+    if text[-1] not in [".", "!", "?"]:
+        pattern = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s*'
+        phrases = re.split(pattern, text)
+        print(phrases)
+        if len(phrases) > 1:
+            phrases_sans_derniere = ' '.join(phrases[:-1])
+            text = phrases_sans_derniere
+        else:
+            return None
+    return text
+
+
 def clean_bot_response(bot_response):
-    # TODO: report in a the paper
+    # TODO: report in a the paper, Shall we detect and regenerate or just remove as currently
     bot_response = bot_response.strip()
-    string_to_remove = ["En tant que personnage fictif\\s+?,", "un assistant intelligent",
+    string_to_remove = [r'^\s*\([^)]*\)\s*',  # (text_au_debut) souvent des didascalies
+                        r'\s*\([^)]*\)\s*[.,]?\s*$',  # (text_a_la_fin) souvent des traductions,
+                        r'^\s*\[[^\]]*\]\s*',  # [text_debut]
+                        r'\s*\[[^\]]*\]\s*[.,]?\s*$',  # [text_fin]
+                        "En tant que personnage fictif\\s+?,", "un assistant intelligent",
                         "en tant qu['e] \\w+\\s?,",
-                        "en tant qu['e](\\s+)?\\S[\\S\\s]*?,"]
+                        "en tant qu['e]\\s*?\\S[\\S\\s]*?,"]
 
     expression_regulieres = re.compile("|".join(string_to_remove), re.IGNORECASE)
     quotes = [r'^"(.*)"$', r"^'(.*)'$", r"^'''(.*)'''$"]
