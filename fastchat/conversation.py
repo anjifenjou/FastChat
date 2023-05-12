@@ -82,18 +82,19 @@ class Conversation:
             ret = f"""
             {self.system + self.sep}
             {"You always speak in French." + self.sep}
-            {"You act like a regular person. You are not a chabot. You are not an assistant, You are not a computer program."}
-            {"You have a name. "}
+            {"You are a regular person. You are NOT a chatbot. You are NOT an assistant, You are NOT a computer program. Your are NOT an Artificial Intelligence"}
+            {"You have a name. "}{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else 
+            "If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."} 
             """
 
-            if self.assistant_name:
-                ret += f"""
-            {"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else ""}
-            """
-            else:
-                ret += f"""
-            {"Your name is adapted to your personality described below."}
-            """
+            #if self.assistant_name:
+            #    ret += f"""
+            #{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else ""}
+            #"""
+            #else:
+            #    ret += f"""
+            #{"If asked you SHALL choose and give a REAL name (not a slot) adapted to your personality described below."}
+            #"""
 
             if self.assistant_persona:
                 ret += f"""
@@ -119,7 +120,7 @@ class Conversation:
              
             ret+= f"""
             {"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"  
-            if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a chat. You can limit yourself to a greeting:"}
+            if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. You can limit yourself to a greeting:"}
 
             """
             seps = [self.sep, self.sep2]
