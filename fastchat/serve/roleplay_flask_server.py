@@ -278,29 +278,33 @@ else ""}
     # bot_first_message = clean_bot_response(bot_first_message)
 
     while response_with_complete_sentence is None:
-        completion = client.ChatCompletion.create(
-            model="vicuna-13b-v1.1",
-            messages=request_msg,
-            # n=3 if chosen_persona else 1,
-            max_tokens=50  # force the bot t0 start with a short message
-        )
-        uncleaned_first_message = completion.choices[0].message.content
-        bot_first_message = clean_bot_response(uncleaned_first_message)
+        lang, prob = '', 0
+        while lang != 'fr' or prob < 0.60:
+            completion = client.ChatCompletion.create(
+                model="vicuna-13b-v1.1",
+                messages=request_msg,
+                # n=3 if chosen_persona else 1,
+                max_tokens=50  # force the bot t0 start with a short message
+            )
+            uncleaned_first_message = completion.choices[0].message.content
+            print(uncleaned_first_message)
+            bot_first_message = clean_bot_response(uncleaned_first_message)
+            lang, prob = detect_majority_language(bot_first_message)
         response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
 
     bot_first_message = response_with_complete_sentence
-    lang, prob = detect_majority_language(bot_first_message)
+    # lang, prob = detect_majority_language(bot_first_message)
 
-    while lang != 'fr' or prob < 0.60:
-        completion = client.ChatCompletion.create(
-            model="vicuna-13b-v1.1",
-            messages=request_msg,
+    #while lang != 'fr' or prob < 0.60:
+    #    completion = client.ChatCompletion.create(
+    #        model="vicuna-13b-v1.1",
+     #       messages=request_msg,
             # n=3 if chosen_persona else 1,
-            max_tokens=50  # force the bot t0 start with a short message
-        )
-        bot_first_message = completion.choices[0].message.content
-        bot_first_message = clean_bot_response(bot_first_message)
-        lang, prob = detect_majority_language(bot_first_message)
+         #   max_tokens=50  # force the bot t0 start with a short message
+      #  )
+       # bot_first_message = completion.choices[0].message.content
+        #bot_first_message = clean_bot_response(bot_first_message)
+        # lang, prob = detect_majority_language(bot_first_message)
 
     tokens_usage = completion.choices[0].usage
     conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
@@ -319,7 +323,6 @@ else ""}
 
 def remove_incomplete_sentence(text):
     text = text.strip()
-    print(text[-1])
 
     if text[-1] not in [".", "!", "?"]:
         pattern = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s*'
