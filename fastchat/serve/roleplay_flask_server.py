@@ -90,6 +90,7 @@ else ""}
                 approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
                 # + new_user_persona_length
 
+                # if approx_new_prompt_length + args.max_new_tokens + 8 > args.prompt_length_threshold:  # access memory when reaching condition
                 if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
                     # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
                     conv_map[sender_id]['num_memory_access'] += 1
@@ -206,11 +207,14 @@ def detect_majority_language(text):
     Detect if there is more than one language, and french is not most present regenerate
     """
     DetectorFactory.seed = 0
-    languages = detect_langs(text)
-
-    majority_language = max(languages, key=lambda lang: lang.prob)
-    print(f'Language is: {majority_language.lang} and probability is: {majority_language.prob:.2f}')
-    return majority_language.lang, majority_language.prob
+    lang, prob = '', 0
+    text = text.strip()
+    if text:  # to avoid errors when the string is empty
+        languages = detect_langs(text)
+        majority_language = max(languages, key=lambda lang: lang.prob)
+        lang, prob = majority_language.lang, majority_language.prob
+    print(f'Language is: {lang} and probability is: {prob:.2f}')
+    return lang, prob
 
 
 def init_conversation(sender_id, user_utterance):
