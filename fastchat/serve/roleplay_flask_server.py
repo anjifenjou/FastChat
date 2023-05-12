@@ -287,9 +287,10 @@ else ""}
         uncleaned_first_message = completion.choices[0].message.content
         bot_first_message = clean_bot_response(uncleaned_first_message)
         response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
-
+    print(f"Uncleaned bot first message: {uncleaned_first_message}")
     bot_first_message = response_with_complete_sentence
     lang, prob = detect_majority_language(bot_first_message)
+
     while lang != 'fr' or prob < 0.60:
         completion = client.ChatCompletion.create(
             model="vicuna-13b-v1.1",
@@ -306,7 +307,7 @@ else ""}
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
 
-    print(f"Uncleaned bot first message: {uncleaned_first_message}")
+
 
     return bot_first_message
     # jsonify({
