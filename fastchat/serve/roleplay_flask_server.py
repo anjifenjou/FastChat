@@ -284,8 +284,8 @@ else ""}
             # n=3 if chosen_persona else 1,
             max_tokens=50  # force the bot t0 start with a short message
         )
-        bot_first_message = completion.choices[0].message.content
-        bot_first_message = clean_bot_response(bot_first_message)
+        uncleaned_first_message = completion.choices[0].message.content
+        bot_first_message = clean_bot_response(uncleaned_first_message)
         response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
 
     bot_first_message = response_with_complete_sentence
@@ -297,8 +297,8 @@ else ""}
             # n=3 if chosen_persona else 1,
             max_tokens=50  # force the bot t0 start with a short message
         )
-        uncleaned_first_message = completion.choices[0].message.content
-        bot_first_message = clean_bot_response(uncleaned_first_message)
+        bot_first_message = completion.choices[0].message.content
+        bot_first_message = clean_bot_response(bot_first_message)
         lang, prob = detect_majority_language(bot_first_message)
 
     tokens_usage = completion.choices[0].usage
