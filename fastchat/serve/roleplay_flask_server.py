@@ -213,7 +213,7 @@ def detect_majority_language(text):
         languages = detect_langs(text)
         majority_language = max(languages, key=lambda lang: lang.prob)
         lang, prob = majority_language.lang, majority_language.prob
-    print(f'Language is: {lang} and probability is: {prob:.2f}')
+        print(f'Language is: {lang} and probability is: {prob:.2f}')
     return lang, prob
 
 
