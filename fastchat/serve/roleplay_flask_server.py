@@ -406,12 +406,12 @@ def generate_user_persona(user_utterances):
         formatted_user_utterances += message["role"] + ": " + message["content"] + "\n"
 
     user_persona_gen_prompt = f"""
-    Rédige un résumé très court de la personnalité de l'utilisateur suivant en une phrase courte.
-    Le résumé ne doit pas comporter le mot "utilisateur", uniquement sa description.  
-    Le résumé est limité à 10 mots. 
+Rédige un résumé très court de la personnalité de l'utilisateur suivant en une phrase courte.
+Le résumé ne doit pas comporter le mot "utilisateur", uniquement sa description.  
+Le résumé est limité à 10 mots. 
 
-    {formatted_user_utterances}
-    """
+{formatted_user_utterances}
+"""
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
         messages=[{"role": "user", "content": user_persona_gen_prompt},
@@ -430,14 +430,15 @@ def generate_memory(episode, start, stop,
         if message['role'] == 'assistant':
             formatted_episode += message["role"] + ": " \
                                  + message["content"] \
-                                 + seps[1]  # + "\n"
+                                 + seps[0] + "\n"
         elif message['role'] == 'user':
             formatted_episode += message["role"] + ": " \
-                                 + message["content"] + seps[0]  # + "\n"
+                                 + message["content"] + seps[0] + "\n"
 
     memory_generation_prompt = f"""
-Rédige un résumé global de la conversation suivante entre un assistant et un utilisateur en une phrase. 
-Le résumé doit comporter des informations pertinentes et ne doit pas commencer par "dans cette conversation".
+Rédige un COURT résumé  de la conversation suivante entre un assistant et un utilisateur en une phrase. 
+Le résumé doit comporter des informations pertinentes et ne doit pas commencer par "dans cette conversation"
+Le résumé doit faire maximum 100 mots.
 
 {formatted_episode}
 """
