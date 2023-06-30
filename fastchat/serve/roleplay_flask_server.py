@@ -43,6 +43,8 @@ def user_message():
         history = conversation["messages"]
 
         if get_bool(args.shallow_roleplay):
+
+            # prompt, history = build_prompt()
             ret = f"""
 {shallow_desc + sep}
 
@@ -194,6 +196,103 @@ def kill_conversation():
     )
 
 
+# system: str, seps: list = [" ", "</s>"],
+def build_prompt(assistant_name: str = None,
+                 assistant_persona: list[str] = None, user_persona: list[str] = None, memory: list[str] = None,
+                 messages: list[str] = None, knowledge_response: str = None, style: str = None,):
+    """
+    Args:
+        system: A string describing how the system should globally behave
+        seps: default separator of the backbone LLM (here Vicuna by default)
+        assistant_name: a string decribing the name of the assistant throughout the conversation
+        assistant_persona: a list of string each describing a particular traits the assistant should roleplay
+        user_persona: a list of string describing the user and derived from the previous utterances
+        memory: a short summary of older dialogue episodes (here used when the prompt is too long and the messages are
+                truncated
+        messages: history of the conversation. If memory is used it doesn't include older messages that are summarized
+        knowledge_response: a string of external information to ground the answer (this is not the retrieved documents
+                            or memory but a sentence that gathers the relevant information to ground the answer)
+        style: the tone/style of writing that the response should convey ( sad, happy, joy etc... it is actually Image Chat that has style)
+        #TODO: it could be interesting to dynamically (automatically determine the writing style ?)
+        #TODO: it should be better evaluated: rather than just engagingness, assess persona consistency, style etc
+         #TODO persona and style Adjustment to enhance open domain conversation
+    Return:
+        ret: a string corresponding to the built prompt. In the case external information/instruction should be added
+            in between speakers back-and-fourths we return the last users messages modified to add them
+    """
+
+    separation = "." + f"{sep}"
+
+    if args.shallow_roleplay:
+
+        ret = f"""
+{shallow_desc + sep} 
+
+{"The following sentences describe assistant personality and background: " +
+ " ".join(assistant_persona) + sep2 if assistant_persona else ""}  
+
+{"Complete the following conversation as the assistant with the described character would with a short response in French: "}
+
+"""
+
+    else:  # advanced and verbose prompt
+        ret = f"""
+{system_desc + sep}
+{"You SHALL ALWAYS respond in French." + sep}
+{"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
+{"You have a name. "}{"Your name is " + assistant_name + "." + sep if assistant_name else
+"If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}
+"""
+
+        if assistant_persona:
+            ret += f"""
+{"YOUR personality is: " + separation.join(assistant_persona) if assistant_persona else ""}
+{"Remember, you always stay on character. You are the character described above." if assistant_persona else ""}   
+
+"""
+
+        if user_persona:
+            ret += f"""
+{"You know this about the user you are talking to: " + separation.join(user_persona)
+ + ". Use it to adapt your conversation to the user" if user_persona else ""}
+ 
+"""
+
+        if memory:
+            ret += f"""
+{"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
+ sep.join(memory) if memory else ""}    
+"""   # in SOTA this is not how memory is used, stored in a based and queried when necessary using retrieval & matching
+# technique
+
+        ret += f"""
+{"Complete the following conversation with a short and precise sentence as your character would.  " 
+ "Always speak with new and unique messages that haven't been said in the conversation :"
+if len(messages) > 1 
+else "Start a conversation in French, empathically as your character would. Write your input only, not the user's " 
+     "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. " 
+     "You can limit yourself to a greeting:"}
+
+"""
+        if knowledge_response:
+            # should we add new line here ? # may be add new line after each speaker response?
+            # messages[-1] = messages[-1] + "\n" + f" Voici des informations supplémentaires récupérées sur Internet" \
+            #                f" à propos du dernier message de l'utilisateur:" \
+            #                f"{knowledge_response}. Utilise cela pour construire ta réponse. "
+            # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
+            # conversation
+
+            messages[-1] = messages[-1] + "\n" + f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
+             # last message now includes additional knowledge
+
+        if style:  # should be the last directive before model response # if in another langugae than response language
+                   # it can be misleading
+            messages[-1] = messages[-1] + "\n" +  f"Réponds avec le style suivant:{style}. \n"
+                  # in this way also at next turn user messages would be as if there were new informations
+
+    return ret, messages
+
+
 def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
     if isinstance(utterance, str):
         return len(nltk_tokenizer.tokenize(utterance))
@@ -341,7 +440,7 @@ def remove_incomplete_sentence(text):
 
 
 def clean_bot_response(bot_response):
-    # TODO: report in a the paper, Shall we detect and regenerate or just remove as currently
+    # TODO: report in  the paper, Shall we detect and regenerate or just remove as currently
     bot_response = bot_response.strip()
     string_to_remove = [r'^\s*\([^)]*\)\s*',  # (text_au_debut) souvent des didascalies
                         r'\s*\([^)]*\)\s*[.,]?\s*$',  # (text_a_la_fin) souvent des traductions,
@@ -528,7 +627,7 @@ def init_app_parameters():
     parser.add_argument("--port", type=str, default=None,
                         help="port of the flask_server ")
     parser.add_argument("--shallow_roleplay", type=str, default="False",
-                        help="Wether or not to run a shallow prompt version of the roleplay.")
+                        help="Whether or not to run a shallow prompt version of the roleplay.")
     args = parser.parse_args()
     # PERSONALITIES
     data_path = args.data_path
