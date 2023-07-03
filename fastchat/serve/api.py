@@ -111,28 +111,32 @@ def get_gen_params(
 
     for message in messages:
         # Currently all fields are sent as strings
+        # UPDATE: as prompt are build be being sent to API additional fields are removed
+
         msg_role = message["role"]
-        if msg_role == "request_type":
-            conv.roleplay = (message["content"] == "roleplay_chat")
-        elif msg_role == "system":
+
+        if msg_role == "system":
             conv.system = message.get("content", conv.system)
         elif msg_role == "user":
             conv.append_message(conv.roles[0], message["content"])
         elif msg_role == "assistant":
             conv.append_message(conv.roles[1], message["content"])
-        # New conversation metadata fields
-        elif msg_role == "assistant_persona":
-            conv.assistant_persona = message["content"].split('||')
-        elif msg_role == "assistant_name":
-            conv.assistant_name = message["content"]
-        elif msg_role == "user_persona":
-            conv.user_persona = message["content"].split('||')
-        elif msg_role == "knowledge_response":
-            conv.knowledge_response = message["content"]
-        # elif msg_role == "observed_image_captions":
-        #     conv.observed_image_captions = message["content"].split('||')
-        elif msg_role == "memory":
-            conv.memory = message["content"].split('||')
+
+        # # New conversation metadata fields
+        # elif msg_role == "request_type":
+        #     conv.roleplay = (message["content"] == "roleplay_chat")
+        # elif msg_role == "assistant_persona":
+        #     conv.assistant_persona = message["content"].split('||')
+        # elif msg_role == "assistant_name":
+        #     conv.assistant_name = message["content"]
+        # elif msg_role == "user_persona":
+        #     conv.user_persona = message["content"].split('||')
+        # elif msg_role == "knowledge_response":
+        #     conv.knowledge_response = message["content"]
+        # # elif msg_role == "observed_image_captions":
+        # #     conv.observed_image_captions = message["content"].split('||')
+        # elif msg_role == "memory":
+        #     conv.memory = message["content"].split('||')
         else:
             raise ValueError(f"Unknown role: {msg_role}")
 

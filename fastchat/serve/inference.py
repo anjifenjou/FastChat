@@ -151,7 +151,7 @@ def load_model(
 
     # New: Guanaco
     elif "guanaco" in model_path: # load at least the 33b and 65b
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
             load_in_4bit=True,
