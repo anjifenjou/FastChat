@@ -42,77 +42,80 @@ def user_message():
         conversation = conv_map[sender_id]
         history = conversation["messages"]
 
-        if get_bool(args.shallow_roleplay):
+        if not get_bool(args.shallow_roleplay):
+            #  already taken into account in prompt builder
+            # request_messages = [{"role": "request_type", "content": "roleplay_chat"},
+            #                    {"role": "system", "content": prompt}]
 
-            # prompt, history = build_prompt()
-            ret = f"""
-{shallow_desc + sep}
-
-{"The following sentences describe assistant personality and background: " +
-" ".join(conv_map[sender_id]["assistant_persona"]) + sep2 if conv_map[sender_id]["assistant_persona"]
-else ""}
-
-{"Complete the following conversation as the assistant with the described character would with a short response in French: "}
-
-"""
-            request_messages = [{"role": "system", "content": ret}]
-        else:
-            request_messages = [{"role": "request_type", "content": "roleplay_chat"},
-                                {"role": "system", "content": system_desc}]
-
-            # TODO we should test search module here or later after model first response try (depending of what its says)
-            ################################################################################################################
+            # TODO we should test search module here or later after model first response try (depending of what it says)
+            ############################################################################################################
             #                                                  SEARCH MODULE
-            ################################################################################################################
+            ############################################################################################################
             search_decision = get_search_decision(user_utterance)
-            if search_decision:
-                knowledge_response = generate_knowledge_response(user_utterance)
-                request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
+            knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
+            # request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
 
-            ################################################################################################################
+            ############################################################################################################
             #                                         ADDING ASSISTANT PERSONA TRAITS IN THE REQUEST
-            ################################################################################################################
-            request_messages += [
-                {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-                {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
+            ############################################################################################################
+            assistant_persona = conv_map[sender_id]["assistant_persona"]
+            assistant_name = conv_map[sender_id].get("assistant_name", "")
+            # request_messages += [
+            #     {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
+            #     {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
 
-            ###############################################################################################################
+            # "build" persona based on the prompt type ? should be done in prompt building module
+
+            ############################################################################################################
             #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
-            ################################################################################################################
+            ############################################################################################################
             user_persona = conversation.get("user_persona", [])
-            if user_persona:
-                request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
+            # if user_persona:
+            #     request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
 
-            ###############################################################################################################
-            #                               ACCESSING MEMORY IF CONDITION REACHED (modify history then)
-            ###############################################################################################################
-            if conv_map[sender_id]["memory"]:  # if there is no memory yet the prompt will just be trimmed by the worker
-                approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
-                # TODO import the LLaMA tokenizer here (to have exact count)
-                approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
-                # + new_user_persona_length
+            ############################################################################################################
+            #                            ACCESSING MEMORY IF CONDITION REACHED (modify history then)
+            ############################################################################################################
+            # if approx_new_prompt_length + args.max_new_tokens + 8 > args.prompt_length_threshold:
+            # access memory when reaching condition
 
-                # if approx_new_prompt_length + args.max_new_tokens + 8 > args.prompt_length_threshold:  # access memory when reaching condition
-                if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
-                    # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
-                    conv_map[sender_id]['num_memory_access'] += 1
-                    request_memory_content, history = \
-                        get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+            approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
+            # TODO import the LLaMA tokenizer here (to have exact count)
+            approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
 
-                    request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+            # + new_user_persona_length
+            if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:   # access memory when reaching condition
+                # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
+                conv_map[sender_id]['num_memory_access'] += 1
 
-                # send the memories already accessed in preceding turn if the condition for new history is not reached
-                elif conv_map[sender_id]['num_memory_access'] > 0:
-                    request_memory_content, history = \
-                        get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+                if not conv_map[sender_id]["memory"]:   # No memory built yet => build it up to the current point
+                    start = 0   # if there is no memory then we are at the start of the conversation
+                    stop = len(history[:-1])  # to keep at least the last user input
+                    conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
+                                                                         start=start, stop=stop))
+                request_memory_content, history = \
+                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
 
-                    request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+                # request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+
+            elif conv_map[sender_id]['num_memory_access'] > 0:
+                # send the memories already accessed in preceding turns if the condition for new history is not reached
+                request_memory_content, history = \
+                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+
+                # request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
 
         ################################################################################################################
         #                                    ADD HISTORY AND SEND REQUEST TO API
         ################################################################################################################
-        request_messages += history
+        # request_messages += history
 
+        prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+                                       assistant_name=assistant_name, user_persona=user_persona,
+                                       memory=request_memory_content, messages=history,
+                                       knowledge_response=knowledge_response, style="")
+
+        request_messages = [{"role": "system", "content": prompt}] + history
         # Send a request to the API
         response_with_complete_sentence = None
         while response_with_complete_sentence is None:
@@ -143,19 +146,16 @@ else ""}
         ################################################################################################################
         #                                           USER PERSONA BUILDING MODULE
         thrshld_len = len(history) + 1 if conv_map[sender_id]["chosen_persona"] else len(history)
-        # in case of chosen persona, user first message is not added to history
+        # in case of chosen persona (user assigning to assistant, their first message is not added to history)
         ################################################################################################################
         if history and thrshld_len % (num_turn_threshold * 2) == 0:
-            # build user persona in this episode:
-            # stop = len(history)  # // (num_turn_threshold * 2)
-            # start = len(history) - num_turn_threshold * 2
             user_utterances = [message for message in history[- num_turn_threshold * 2:] if message["role"] == 'user']
             conv_map[sender_id]["user_persona"].append(generate_user_persona(user_utterances))
 
         ################################################################################################################
         #                                               MEMORY BUILDING MODULE
         ################################################################################################################
-        if history and thrshld_len % num_turn_threshold == 0:
+        if history and thrshld_len % num_turn_threshold == 0:  # may be improve this based on Few-Shot Bot
             if conv_map[sender_id]["memory"]:
                 start = conv_map[sender_id]["memory"][-1]["stop"]
             else:
@@ -165,11 +165,10 @@ else ""}
                                                                  start=start, stop=stop))
 
     # print(bot_response)
-    print()
-
+    # print()
     return jsonify(
         {
-            'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
+            'persona': ' || '.join(assistant_persona),
             'messages': conv_map[sender_id]["messages"],
             'chatbot_utterance': bot_response,
             'num_user_turns': conv_map[sender_id]["num_user_turns"],
@@ -197,11 +196,13 @@ def kill_conversation():
 
 
 # system: str, seps: list = [" ", "</s>"],
-def build_prompt(assistant_name: str = None,
+def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
                  assistant_persona: list[str] = None, user_persona: list[str] = None, memory: list[str] = None,
                  messages: list[str] = None, knowledge_response: str = None, style: str = None,):
     """
     Args:
+        prompt_type: a string describing the type of prompt selected by the RL.
+                    Can be 'full', 'inc' or 'wind'. default 'full'
         system: A string describing how the system should globally behave
         seps: default separator of the backbone LLM (here Vicuna by default)
         assistant_name: a string decribing the name of the assistant throughout the conversation
@@ -236,6 +237,10 @@ def build_prompt(assistant_name: str = None,
 """
 
     else:  # advanced and verbose prompt
+
+        if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
+            assistant_persona = [assistant_persona[0]]  # to display only one
+
         ret = f"""
 {system_desc + sep}
 {"You SHALL ALWAYS respond in French." + sep}
@@ -282,12 +287,12 @@ else "Start a conversation in French, empathically as your character would. Writ
             # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
             # conversation
 
-            messages[-1] = messages[-1] + "\n" + f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
+            messages[-1] = messages[-1]['content'] + "\n" + f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
              # last message now includes additional knowledge
 
         if style:  # should be the last directive before model response # if in another langugae than response language
                    # it can be misleading
-            messages[-1] = messages[-1] + "\n" +  f"Réponds avec le style suivant:{style}. \n"
+            messages[-1] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
                   # in this way also at next turn user messages would be as if there were new informations
 
     return ret, messages
