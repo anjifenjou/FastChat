@@ -39,20 +39,20 @@ class Conversation:
 
     # New added fields
 
-    # Assistant name in for this conversation
-    assistant_name: Optional[str] = None
-    # Assistant persona given by the user or randomly selected in personachat
-    assistant_persona: Union[str, List[str]] = None
-    # User persona detected throughout the conversation by the assistant
-    user_persona: Optional[Union[str, List[str]]] = None
-    # Caption about an image that user and assistant are supposedly looking at
-    # observed_image_captions: Optional[Union[str, List[str]]]
-    # Generated memory when history[messages] is truncated
-    memory: Optional[Union[List[str], str]] = None
-    # result of internet querying about user inputs
-    knowledge_response: Optional[str] = None
-    # boolean to say if it is roleplay or not
-    roleplay: bool = False
+    # # Assistant name in for this conversation
+    # assistant_name: Optional[str] = None
+    # # Assistant persona given by the user or randomly selected in personachat
+    # assistant_persona: Union[str, List[str]] = None
+    # # User persona detected throughout the conversation by the assistant
+    # user_persona: Optional[Union[str, List[str]]] = None
+    # # Caption about an image that user and assistant are supposedly looking at
+    # # observed_image_captions: Optional[Union[str, List[str]]]
+    # # Generated memory when history[messages] is truncated
+    # memory: Optional[Union[List[str], str]] = None
+    # # result of internet querying about user inputs
+    # knowledge_response: Optional[str] = None
+    # # boolean to say if it is roleplay or not
+    # roleplay: bool = False
 
     sep2: str = None
     # Stop criteria (the default one is EOS token)
@@ -69,142 +69,141 @@ class Conversation:
     def get_prompt(self):
         # New
 
-        if self.roleplay:  # currently supports Vicuna only
-            # print(self.messages)
-            assert "vicuna" in self.model_name.lower(), f"Roleplay is only available for Vicuna"
-            assert self.sep_style == SeparatorStyle.ADD_COLON_TWO, f"Invalid style: {self.sep_style} for vicuna_v1_1"
-            separation = "." + f"{self.sep}"
-
-            self.assistant_persona = [persona.split('.')[0].strip() for persona in self.assistant_persona]
-            self.user_persona = [persona.split('.')[0].strip() for persona in self.user_persona]
-            # self.observed_image_captions = [caption.split('.')[0].strip() for caption in self.observed_image_captions]
-
-            ret = f"""
-{self.system + self.sep}
-{"You SHALL ALWAYS respond in French." + self.sep}
-{"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
-{"You have a name. "}{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else 
-"If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}"""
-
-            #if self.assistant_name:
-            #    ret += f"""
-            #{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else ""}
-            #"""
-            #else:
-            #    ret += f"""
-            #{"If asked you SHALL choose and give a REAL name (not a slot) adapted to your personality described below."}
-            #"""
-
-            if self.assistant_persona:
-                ret += f"""
-{"YOUR personality is: " + separation.join(self.assistant_persona) if self.assistant_persona else ""}
-{"Remember, you always stay on character. You are the character described above." if self.assistant_persona else ""}   
-            """
-
-            if self.user_persona:
-                ret += f"""
-{"You know this about the user you are talking to: " + separation.join(self.user_persona) 
-+ ". Use it to adapt your conversation to the user" if self.user_persona else ""}
-"""
-
-            if self.memory:
-                ret += f"""
-{"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
-self.sep.join(self.memory)  if self.memory else ""}
-"""
-             
-             
-            ret+= f"""
-{"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"  
-if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. You can limit yourself to a greeting:"}
-
-"""
-            seps = [self.sep, self.sep2]
-            # here we build conversation history
-            for i, (role, message) in enumerate(self.messages):
-                if message:
-                    if role == self.roles[0]:
-                        ret += role + ": " + message + seps[0]  # + "\n"
-                    elif role == self.roles[1]:
-                        ret += role + ": " + message + seps[1]  # + "\n"
-                        # ret += self.assistant_name + ": " + message + seps[1]  # + "\n"
-                else:
-                    if self.knowledge_response:
-                        ret += f" Voici des informations supplémentaires récupérées sur Internet" \
-                               f" à propos du dernier message de l'utilisateur:" \
-                               f"{self.knowledge_response}. Utilise cela pour construire ta réponse. "  # \n"
-                    ret += role + ":"
-            return ret
+#         if self.roleplay:  # currently supports Vicuna only
+#             # print(self.messages)
+#             assert "vicuna" in self.model_name.lower(), f"Roleplay is only available for Vicuna"
+#             assert self.sep_style == SeparatorStyle.ADD_COLON_TWO, f"Invalid style: {self.sep_style} for vicuna_v1_1"
+#             separation = "." + f"{self.sep}"
+#
+#             self.assistant_persona = [persona.split('.')[0].strip() for persona in self.assistant_persona]
+#             self.user_persona = [persona.split('.')[0].strip() for persona in self.user_persona]
+#             # self.observed_image_captions = [caption.split('.')[0].strip() for caption in self.observed_image_captions]
+#
+#             ret = f"""
+# {self.system + self.sep}
+# {"You SHALL ALWAYS respond in French." + self.sep}
+# {"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
+# {"You have a name. "}{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else
+# "If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}"""
+#
+#             #if self.assistant_name:
+#             #    ret += f"""
+#             #{"Your name is " + self.assistant_name + "." + self.sep if self.assistant_name else ""}
+#             #"""
+#             #else:
+#             #    ret += f"""
+#             #{"If asked you SHALL choose and give a REAL name (not a slot) adapted to your personality described below."}
+#             #"""
+#
+#             if self.assistant_persona:
+#                 ret += f"""
+# {"YOUR personality is: " + separation.join(self.assistant_persona) if self.assistant_persona else ""}
+# {"Remember, you always stay on character. You are the character described above." if self.assistant_persona else ""}
+#             """
+#
+#             if self.user_persona:
+#                 ret += f"""
+# {"You know this about the user you are talking to: " + separation.join(self.user_persona)
+# + ". Use it to adapt your conversation to the user" if self.user_persona else ""}
+# """
+#
+#             if self.memory:
+#                 ret += f"""
+# {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
+# self.sep.join(self.memory)  if self.memory else ""}
+# """
+#
+#
+#             ret += f"""
+# {"Complete the following conversation with a short and precise sentence as your character would.  Always speak with new and unique messages that haven't been said in the conversation :"
+# if len(self.messages) > 1 else "Start a conversation in French, empathically as your character would. Write your input only, not the user's response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. You can limit yourself to a greeting:"}
+#
+# """
+#             seps = [self.sep, self.sep2]
+#             # here we build conversation history
+#             for i, (role, message) in enumerate(self.messages):
+#                 if message:
+#                     if role == self.roles[0]:
+#                         ret += role + ": " + message + seps[0]  # + "\n"
+#                     elif role == self.roles[1]:
+#                         ret += role + ": " + message + seps[1]  # + "\n"
+#                         # ret += self.assistant_name + ": " + message + seps[1]  # + "\n"
+#                 else:
+#                     if self.knowledge_response:
+#                         ret += f" Voici des informations supplémentaires récupérées sur Internet" \
+#                                f" à propos du dernier message de l'utilisateur:" \
+#                                f"{self.knowledge_response}. Utilise cela pour construire ta réponse. "  # \n"
+#                     ret += role + ":"
+#             return ret
 
         # TODO combine these to make a single code and compatibility with other models
-        else:
 
-            if self.sep_style == SeparatorStyle.ADD_COLON_SINGLE:
-                ret = self.system + self.sep
-                for role, message in self.messages:
-                    if message:
-                        ret += role + ": " + message + self.sep
-                    else:
-                        ret += role + ":"
-                return ret
-            elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
-                seps = [self.sep, self.sep2]
-                ret = self.system + seps[0]
-                for i, (role, message) in enumerate(self.messages):
-                    if message:
-                        ret += role + ": " + message + seps[i % 2]
-                    else:
-                        ret += role + ":"
-                return ret
-            elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
-                ret = self.system
-                for role, message in self.messages:
-                    if message:
-                        ret += role + message + self.sep
-                    else:
-                        ret += role
-                return ret
-            elif self.sep_style == SeparatorStyle.BAIZE:
-                ret = self.system + "\n"
-                for role, message in self.messages:
-                    if message:
-                        ret += role + message + "\n"
-                    else:
-                        ret += role
-                return ret
-            elif self.sep_style == SeparatorStyle.DOLLY:
-                seps = [self.sep, self.sep2]
-                ret = self.system
-                for i, (role, message) in enumerate(self.messages):
-                    if message:
-                        ret += role + ":\n" + message + seps[i % 2]
-                        if i % 2 == 1:
-                            ret += "\n\n"
-                    else:
-                        ret += role + ":\n"
-                return ret
-            elif self.sep_style == SeparatorStyle.RWKV:
-                ret = self.system
-                for i, (role, message) in enumerate(self.messages):
-                    if message:
-                        ret += (
-                            role
-                            + ": "
-                            + message.replace("\r\n", "\n").replace("\n\n", "\n")
-                        )
+        if self.sep_style == SeparatorStyle.ADD_COLON_SINGLE:
+            ret = self.system + self.sep
+            for role, message in self.messages:
+                if message:
+                    ret += role + ": " + message + self.sep
+                else:
+                    ret += role + ":"
+            return ret
+        elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
+            seps = [self.sep, self.sep2]
+            ret = self.system + seps[0]
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    ret += role + ": " + message + seps[i % 2]
+                else:
+                    ret += role + ":"
+            return ret
+        elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
+            ret = self.system
+            for role, message in self.messages:
+                if message:
+                    ret += role + message + self.sep
+                else:
+                    ret += role
+            return ret
+        elif self.sep_style == SeparatorStyle.BAIZE:
+            ret = self.system + "\n"
+            for role, message in self.messages:
+                if message:
+                    ret += role + message + "\n"
+                else:
+                    ret += role
+            return ret
+        elif self.sep_style == SeparatorStyle.DOLLY:
+            seps = [self.sep, self.sep2]
+            ret = self.system
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    ret += role + ":\n" + message + seps[i % 2]
+                    if i % 2 == 1:
                         ret += "\n\n"
-                    else:
-                        ret += role + ":"
-                return ret
-            else:
-                raise ValueError(f"Invalid style: {self.sep_style}")
+                else:
+                    ret += role + ":\n"
+            return ret
+        elif self.sep_style == SeparatorStyle.RWKV:
+            ret = self.system
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    ret += (
+                        role
+                        + ": "
+                        + message.replace("\r\n", "\n").replace("\n\n", "\n")
+                    )
+                    ret += "\n\n"
+                else:
+                    ret += role + ":"
+            return ret
+        else:
+            raise ValueError(f"Invalid style: {self.sep_style}")
 
     def append_message(self, role, message):
         self.messages.append([role, message])
 
     def to_gradio_chatbot(self):
         ret = []
-        for i, (role, msg) in enumerate(self.messages[self.offset :]):
+        for i, (role, msg) in enumerate(self.messages[self.offset: ]):
             if i % 2 == 0:
                 ret.append([msg, None])
             else:
@@ -224,14 +223,14 @@ if len(self.messages) > 1 else "Start a conversation in French, empathically as 
             stop_token_ids=self.stop_token_ids,
             conv_id=self.conv_id,
             model_name=self.model_name,
-            # New
-            assistant_persona=self.assistant_persona,
-            assistant_name=self.assistant_name,
-            user_persona=self.user_persona,
-            memory=self.memory,
-            roleplay=self.roleplay,
-            knowledge_response=self.knowledge_response
-            # observed_image_captions=self.observed_image_captions,
+            # # New
+            # assistant_persona=self.assistant_persona,
+            # assistant_name=self.assistant_name,
+            # user_persona=self.user_persona,
+            # memory=self.memory,
+            # roleplay=self.roleplay,
+            # knowledge_response=self.knowledge_response
+            # # observed_image_captions=self.observed_image_captions,
         )
 
     def dict(self):
@@ -242,14 +241,14 @@ if len(self.messages) > 1 else "Start a conversation in French, empathically as 
             "offset": self.offset,
             "conv_id": self.conv_id,
             "model_name": self.model_name,
-            # New
-            "assistant_persona": self.assistant_persona,
-            "assistant_name": self.assistant_name,
-            "user_persona": self.user_persona,
-            "memory": self.memory,
-            # "observed_image_captions": self.observed_image_captions
-            "roleplay": self.roleplay,
-            "knowledge_response": self.knowledge_response
+            # # New
+            # "assistant_persona": self.assistant_persona,
+            # "assistant_name": self.assistant_name,
+            # "user_persona": self.user_persona,
+            # "memory": self.memory,
+            # # "observed_image_captions": self.observed_image_captions
+            # "roleplay": self.roleplay,
+            # "knowledge_response": self.knowledge_response
         }
 
 
@@ -302,13 +301,13 @@ conv_vicuna_v1_1 = Conversation(
     sep_style=SeparatorStyle.ADD_COLON_TWO,
     sep=" ",
     sep2="</s>",
-    # New
-    assistant_name="Vicuna",
-    assistant_persona=[],
-    user_persona=[],
-    # observed_image_captions=[],
-    memory=[],
-    roleplay=False,
+    # # New
+    # assistant_name="Vicuna",
+    # assistant_persona=[],
+    # user_persona=[],
+    # # observed_image_captions=[],
+    # memory=[],
+    # roleplay=False,
 )
 
 # Koala default template
@@ -384,6 +383,18 @@ conv_rwkv = Conversation(
     stop_str="\n\n",
 )
 
+# New
+# guanaco template
+conv_guanaco = Conversation(
+    system="A chat between a curious human and an artificial intelligence assistant. "
+    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+    roles=("Human", "Assistant"),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.ADD_COLON_SINGLE,
+    sep="\n### ",
+    stop_str="###",)
+
 conv_templates = {
     "baize": conv_baize,
     "conv_one_shot": conv_one_shot,
@@ -393,6 +404,8 @@ conv_templates = {
     "stablelm": conv_stablelm,
     "vicuna_v1.1": conv_vicuna_v1_1,
     "rwkv": conv_rwkv,
+    # New
+    "guanaco": conv_guanaco
 }
 
 
@@ -412,6 +425,9 @@ def get_default_conv_template(model_name):
         return conv_stablelm
     elif "rwkv-4" in model_name:
         return conv_rwkv
+    # New
+    elif "guanaco" in model_name:
+        return conv_guanaco
     return conv_one_shot
 
 

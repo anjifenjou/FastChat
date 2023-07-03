@@ -148,6 +148,24 @@ def load_model(
         from fastchat.serve.rwkv_model import RwkvModel
         model = RwkvModel(model_path)
         tokenizer = AutoTokenizer.from_pretrained('EleutherAI/pythia-160m', use_fast=True)
+
+    # New: Guanaco
+    elif "guanaco" in model_path: # load at least the 33b and 65b
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            load_in_4bit=True,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            max_memory={i: '24000MB' for i in range(torch.cuda.device_count())},
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type='nf4'
+            ),
+        )
+
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
         model = AutoModelForCausalLM.from_pretrained(
