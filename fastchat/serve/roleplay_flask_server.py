@@ -42,6 +42,16 @@ def user_message():
         conversation = conv_map[sender_id]
         history = conversation["messages"]
 
+        ################################################################################################################
+        #                                         ADDING ASSISTANT PERSONA TRAITS IN THE REQUEST
+        ################################################################################################################
+        # TODO: "build" persona based on the prompt type ? should be done in prompt building module
+        assistant_persona = conv_map[sender_id]["assistant_persona"]
+        assistant_name = conv_map[sender_id].get("assistant_name", "")
+        # request_messages += [
+        #     {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
+        #     {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
+
         if not get_bool(args.shallow_roleplay):
             #  already taken into account in prompt builder
             # request_messages = [{"role": "request_type", "content": "roleplay_chat"},
@@ -54,17 +64,6 @@ def user_message():
             search_decision = get_search_decision(user_utterance)
             knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
             # request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
-
-            ############################################################################################################
-            #                                         ADDING ASSISTANT PERSONA TRAITS IN THE REQUEST
-            ############################################################################################################
-            assistant_persona = conv_map[sender_id]["assistant_persona"]
-            assistant_name = conv_map[sender_id].get("assistant_name", "")
-            # request_messages += [
-            #     {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-            #     {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
-
-            # "build" persona based on the prompt type ? should be done in prompt building module
 
             ############################################################################################################
             #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
@@ -110,10 +109,13 @@ def user_message():
         ################################################################################################################
         # request_messages += history
 
-        prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
-                                       assistant_name=assistant_name, user_persona=user_persona,
-                                       memory=request_memory_content, messages=history,
-                                       knowledge_response=knowledge_response, style="")
+            prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+                                           assistant_name=assistant_name, user_persona=user_persona,
+                                           memory=request_memory_content, messages=history,
+                                           knowledge_response=knowledge_response, style="")
+        else:
+            prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+                                           assistant_name=assistant_name, messages=history, style="")
 
         request_messages = [{"role": "system", "content": prompt}] + history
         # Send a request to the API
