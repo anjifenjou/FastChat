@@ -8,11 +8,11 @@ from datasets import load_dataset
 import random
 from json import JSONDecodeError
 from nltk.tokenize import RegexpTokenizer
+
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 import re
 from langdetect import detect, detect_langs, DetectorFactory
-
 
 conv_map = {}  # a dictionary of active conversations
 
@@ -84,12 +84,12 @@ def user_message():
             approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
 
             # + new_user_persona_length
-            if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:   # access memory when reaching condition
+            if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
                 # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
                 conv_map[sender_id]['num_memory_access'] += 1
 
-                if not conv_map[sender_id]["memory"]:   # No memory built yet => build it up to the current point
-                    start = 0   # if there is no memory then we are at the start of the conversation
+                if not conv_map[sender_id]["memory"]:  # No memory built yet => build it up to the current point
+                    start = 0  # if there is no memory then we are at the start of the conversation
                     stop = len(history[:-1])  # to keep at least the last user input
                     conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
                                                                          start=start, stop=stop))
@@ -198,7 +198,7 @@ def kill_conversation():
 # system: str, seps: list = [" ", "</s>"],
 def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
                  assistant_persona: list[str] = None, user_persona: list[str] = None, memory: list[str] = None,
-                 messages: list[str] = None, knowledge_response: str = None, style: str = None,):
+                 messages: list[str] = [], knowledge_response: str = None, style: str = None, ):
     """
     Args:
         prompt_type: a string describing the type of prompt selected by the RL.
@@ -232,8 +232,9 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
 {"The following sentences describe assistant personality and background: " +
  " ".join(assistant_persona) + sep2 if assistant_persona else ""}  
 
-{"Complete the following conversation as the assistant with the described character would with a short response in French: "}
-
+{"Complete the following conversation as the assistant with the described character would with a short response in French: "
+        if len(messages) > 1 else
+        "Start a conversation as the assistant with the described character would with a short response in French: "}
 """
 
     else:  # advanced and verbose prompt
@@ -246,7 +247,7 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
 {"You SHALL ALWAYS respond in French." + sep}
 {"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
 {"You have a name. "}{"Your name is " + assistant_name + "." + sep if assistant_name else
-"If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}
+        "If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}
 """
 
         if assistant_persona:
@@ -267,16 +268,16 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
             ret += f"""
 {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
  sep.join(memory) if memory else ""}    
-"""   # in SOTA this is not how memory is used, stored in a based and queried when necessary using retrieval & matching
-# technique
+"""  # in SOTA this is not how memory is used, stored in a based and queried when necessary using retrieval & matching
+        # technique
 
         ret += f"""
-{"Complete the following conversation with a short and precise sentence as your character would.  " 
+{"Complete the following conversation with a short and precise sentence as your character would.  "
  "Always speak with new and unique messages that haven't been said in the conversation :"
-if len(messages) > 1 
-else "Start a conversation in French, empathically as your character would. Write your input only, not the user's " 
-     "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. " 
-     "You can limit yourself to a greeting:"}
+        if len(messages) > 1
+        else "Start a conversation in French, empathically as your character would. Write your input only, not the user's "
+             "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
+             "You can limit yourself to a greeting:"}
 
 """
         if knowledge_response:
@@ -287,13 +288,14 @@ else "Start a conversation in French, empathically as your character would. Writ
             # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
             # conversation
 
-            messages[-1] = messages[-1]['content'] + "\n" + f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
-             # last message now includes additional knowledge
+            messages[-1] = messages[-1][
+                               'content'] + "\n" + f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
+            # last message now includes additional knowledge
 
         if style:  # should be the last directive before model response # if in another langugae than response language
-                   # it can be misleading
+            # it can be misleading
             messages[-1] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
-                  # in this way also at next turn user messages would be as if there were new informations
+            # in this way also at next turn user messages would be as if there were new informations
 
     return ret, messages
 
@@ -331,59 +333,38 @@ def init_conversation(sender_id, user_utterance):
     """
     assistant_persona = random.choice(pchat_personalities)
     assistant_name = ""
-    # chosen_persona = get_desired_persona(user_utterance=user_utterance)  # The case of user desired persona.
+    # chosen_persona = get_desired_persona(user_utterance=user_utterance)  # case when user want to assign a persona.
     chosen_persona = False
     text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
     if chosen_persona:
         assistant_persona = chosen_persona.get("persona", assistant_persona)
-        text = f"The user selected a persona: {'|'.join(assistant_persona)} "
+        text = f"The user assigned the following persona: {'|'.join(assistant_persona)} "
         assistant_name = chosen_persona.get("name", assistant_name)
     print(text)
 
-    conv_map[sender_id] = {"assistant_persona": assistant_persona,
-                           "user_persona": [],
-                           "memory": [],
-                           "assistant_name": assistant_name,
-                           "messages": [],
-                           "last_output_size": 0,
-                           "num_memory_access": 0,
-                           # "chosen_persona": chosen_persona is not None}
-                           "chosen_persona": chosen_persona,
-                           "num_user_turns": 0}
+    conversation_dict = {"assistant_persona": assistant_persona,
+                         "user_persona": [],
+                         "memory": [],
+                         "assistant_name": assistant_name,
+                         "messages": [],
+                         "last_output_size": 0,
+                         "num_memory_access": 0,
+                         # "chosen_persona": chosen_persona is not None
+                         "chosen_persona": chosen_persona,
+                         "num_user_turns": 0}
 
-    if get_bool(args.shallow_roleplay):
-        ret = f"""
-{shallow_desc + sep}
+    conv_map[sender_id] = conversation_dict
+    # TODO: put the prompt type in flask args or in the request sent to the flask
+    prompt, _ = build_prompt(prompt_type='full', assistant_persona=assistant_persona, assistant_name=assistant_name,
+                             user_persona=conversation_dict.get("user_persona", []), style="")
 
-{"The following sentences describe assistant personality and background: " +
- " ".join(conv_map[sender_id]["assistant_persona"]) + sep2 if conv_map[sender_id]["assistant_persona"]
-else ""}
-
-{"Complete the following conversation as the assistant with the described character would with a short response in French: "}
-
-"""
-        request_msg = [{"role": "system", "content": ret}]
-    else:
-        request_msg = [{"role": "request_type", "content": "roleplay_chat"},
-                       {"role": "system", "content": system_desc},
-                       {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
-                       {"role": "assistant_name", "content": conv_map[sender_id]["assistant_name"]}]
-
+    request_msg = [{"role": 'system', 'content': prompt}]
     if not chosen_persona:
         request_msg += [{"role": "user", "content": user_utterance}]
         conv_map[sender_id]["num_user_turns"] += 1
     # if the first user_utterance was to define the persona, we don't send it in the request and the
     # assistant will start the conversation
-
-    response_with_complete_sentence = None
-    #completion = client.ChatCompletion.create(
-     #   model="vicuna-13b-v1.1",
-      #  messages=request_msg,
-        # n=3 if chosen_persona else 1,
-       # max_tokens=50  # force the bot t0 start with a short message
-    #)
-    #bot_first_message = completion.choices[0].message.content
-    # bot_first_message = clean_bot_response(bot_first_message)
+    response_with_complete_sentences = None
 
     while response_with_complete_sentence is None:
         lang, prob = '', 0
@@ -392,7 +373,7 @@ else ""}
                 model="vicuna-13b-v1.1",
                 messages=request_msg,
                 # n=3 if chosen_persona else 1,
-                max_tokens=50  # force the bot t0 start with a short message
+                max_tokens=50  # force the bot to start with a short message
             )
             uncleaned_first_message = completion.choices[0].message.content
             print(uncleaned_first_message)
@@ -401,18 +382,6 @@ else ""}
         response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
 
     bot_first_message = response_with_complete_sentence
-    # lang, prob = detect_majority_language(bot_first_message)
-
-    #while lang != 'fr' or prob < 0.60:
-    #    completion = client.ChatCompletion.create(
-    #        model="vicuna-13b-v1.1",
-     #       messages=request_msg,
-            # n=3 if chosen_persona else 1,
-         #   max_tokens=50  # force the bot t0 start with a short message
-      #  )
-       # bot_first_message = completion.choices[0].message.content
-        #bot_first_message = clean_bot_response(bot_first_message)
-        # lang, prob = detect_majority_language(bot_first_message)
 
     tokens_usage = completion.choices[0].usage
     conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
@@ -482,8 +451,8 @@ def get_desired_persona(
     # if not fully working can bypass it by always returning None
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
-        messages=[{"role": "user", "content": get_persona_prompt},
-                  {"role": "request_type", "content": "submodule_chat"}],
+        messages=[{"role": "user", "content": get_persona_prompt}]
+        # {"role": "request_type", "content": "submodule_chat"}],
     )
     persona_response = completion.choices[0].message.content
     print(f"The persona response is: {persona_response}")
@@ -522,8 +491,8 @@ Le résumé est limité à 10 mots.
 """
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
-        messages=[{"role": "user", "content": user_persona_gen_prompt},
-                  {"role": "request_type", "content": "submodule_chat"}],
+        messages=[{"role": "user", "content": user_persona_gen_prompt}, ]
+        # {"role": "request_type", "content": "submodule_chat"}],
         # n=3  # TODO: think of generating several choices for submodules request and select among them?
     )
     user_persona = completion.choices[0].message.content
@@ -552,8 +521,8 @@ Le résumé doit faire maximum 100 mots.
 """
     completion = client.ChatCompletion.create(
         model="vicuna-13b-v1.1",
-        messages=[{"role": "user", "content": memory_generation_prompt},
-                  {"role": "request_type", "content": "submodule_chat"}],
+        messages=[{"role": "user", "content": memory_generation_prompt}, ]
+        # {"role": "request_type", "content": "submodule_chat"}],
     )
     new_memory = completion.choices[0].message.content
     return {"start": start, "stop": stop, "content": new_memory}
@@ -588,7 +557,7 @@ text=
     #     model="vicuna-13b-v1.1",
     #     messages=[{"role": "user", "content": search_decision_prompt},
     #              {"role": "request_type", "content": "submodule_chat"}],
-        # possibility to generated several choice and perform majority vote on search vs no search?
+    # possibility to generated several choice and perform majority vote on search vs no search?
     # )
     # search_decison = completion.choices[0].message.content
 
@@ -670,7 +639,7 @@ if __name__ == "__main__":  # setting up args
     shallow_desc = "A chat between a curious user and an artificial intelligence assistant. " \
                    "The assistant gives helpful, detailed and polite an answers to user's questions." \
                    "The assistant role plays as the character described below. "
-                    # "The assistant always speak in French" \
+    # "The assistant always speak in French" \
     sep, sep2 = [" ", "</s>"]
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
