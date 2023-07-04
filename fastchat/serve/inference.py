@@ -19,6 +19,7 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     T5Tokenizer,
     AutoConfig,
+    BitsAndBytesConfig,
 )
 
 from fastchat.conversation import (
