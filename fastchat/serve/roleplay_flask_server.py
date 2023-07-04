@@ -78,6 +78,7 @@ def user_message():
             # if approx_new_prompt_length + args.max_new_tokens + 8 > args.prompt_length_threshold:
             # access memory when reaching condition
 
+            request_memory_content = []
             approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
             # TODO import the LLaMA tokenizer here (to have exact count)
             approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
@@ -112,17 +113,19 @@ def user_message():
             prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                            assistant_name=assistant_name, user_persona=user_persona,
                                            memory=request_memory_content, messages=history,
-                                           knowledge_response=knowledge_response, style="")
+                                           knowledge_response=knowledge_response, style="",
+                                           history_first=get_bool(args.history_first))
         else:
             prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
-                                           assistant_name=assistant_name, messages=history, style="")
+                                           assistant_name=assistant_name, messages=history, style="",
+                                           history_first=get_bool(args.history_first))
 
         request_messages = [{"role": "system", "content": prompt}] + history
         # Send a request to the API
         response_with_complete_sentence = None
         while response_with_complete_sentence is None:
             completion = client.ChatCompletion.create(
-                model="vicuna-13b-v1.1",
+                model=args.worker_name,
                 messages=request_messages,
                 max_tokens=args.max_new_tokens,  # added as the model tends to talk too much
             )
@@ -170,7 +173,7 @@ def user_message():
     # print()
     return jsonify(
         {
-            'persona': ' || '.join(assistant_persona),
+            'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
             'messages': conv_map[sender_id]["messages"],
             'chatbot_utterance': bot_response,
             'num_user_turns': conv_map[sender_id]["num_user_turns"],
@@ -228,7 +231,7 @@ def build_prompt(prompt_type: str = 'full',  seps: list = [" ", "</s>"], assista
             in between speakers back-and-fourths we return the last users messages modified to add them
     """
 
-    separation = "." + f"{sep}"
+    separation = " " + f"{sep}"
     ret = ""
     if history_first:
         for i, (role, message) in enumerate(messages[:-1]):
@@ -239,7 +242,7 @@ def build_prompt(prompt_type: str = 'full',  seps: list = [" ", "</s>"], assista
         messages = messages[-1]
         ret += "\n\n"
 
-    if args.shallow_roleplay:
+    if get_bool(args.shallow_roleplay):
 
         ret += f"""
 {shallow_desc + sep} 
@@ -385,13 +388,13 @@ def init_conversation(sender_id, user_utterance):
         conv_map[sender_id]["num_user_turns"] += 1
     # if the first user_utterance was to define the persona, we don't send it in the request and the
     # assistant will start the conversation
-    response_with_complete_sentences = None
+    response_with_complete_sentence = None
 
     while response_with_complete_sentence is None:
         lang, prob = '', 0
         while lang != 'fr' or prob < 0.60:
             completion = client.ChatCompletion.create(
-                model="vicuna-13b-v1.1",
+                model=args.worker_name,
                 messages=request_msg,
                 # n=3 if chosen_persona else 1,
                 max_tokens=50  # force the bot to start with a short message
@@ -471,7 +474,7 @@ def get_desired_persona(
 
     # if not fully working can bypass it by always returning None
     completion = client.ChatCompletion.create(
-        model="vicuna-13b-v1.1",
+        model=args.worker_name,
         messages=[{"role": "user", "content": get_persona_prompt}]
         # {"role": "request_type", "content": "submodule_chat"}],
     )
@@ -511,7 +514,7 @@ Le résumé est limité à 10 mots.
 {formatted_user_utterances}
 """
     completion = client.ChatCompletion.create(
-        model="vicuna-13b-v1.1",
+        model=args.worker_name,
         messages=[{"role": "user", "content": user_persona_gen_prompt}, ]
         # {"role": "request_type", "content": "submodule_chat"}],
         # n=3  # TODO: think of generating several choices for submodules request and select among them?
@@ -541,7 +544,7 @@ Le résumé doit faire maximum 100 mots.
 {formatted_episode}
 """
     completion = client.ChatCompletion.create(
-        model="vicuna-13b-v1.1",
+        model=args.worker_name,
         messages=[{"role": "user", "content": memory_generation_prompt}, ]
         # {"role": "request_type", "content": "submodule_chat"}],
     )
@@ -575,7 +578,7 @@ text=
     """
 
     # completion = client.ChatCompletion.create(
-    #     model="vicuna-13b-v1.1",
+    #     model=args.worker_name",
     #     messages=[{"role": "user", "content": search_decision_prompt},
     #              {"role": "request_type", "content": "submodule_chat"}],
     # possibility to generated several choice and perform majority vote on search vs no search?
@@ -615,12 +618,16 @@ def init_app_parameters():
                              "of the user input")
     parser.add_argument("--search_server", type=str,
                         help="Address of the search server, use to query the web when needed")
+    parser.add_argument("--worker_name", type=str,
+                        help="name of the backend LLM")
     parser.add_argument("--api_address", type=str,
                         help="Address of API to which the request are sent")
     parser.add_argument("--host", type=str, default="0.0.0.0",
                         help="Address of the flask_server host")
     parser.add_argument("--port", type=str, default=None,
                         help="port of the flask_server ")
+    parser.add_argument("--history_first", type=str, default="False",
+                        help="Whether or not to put history before the instructions")
     parser.add_argument("--shallow_roleplay", type=str, default="False",
                         help="Whether or not to run a shallow prompt version of the roleplay.")
     args = parser.parse_args()
@@ -668,3 +675,5 @@ if __name__ == "__main__":  # setting up args
 
     app.run(host=args.host if args.host else "0.0.0.0",
             port=args.port if args.port else 5008)
+
+
