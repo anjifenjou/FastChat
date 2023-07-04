@@ -197,10 +197,11 @@ def kill_conversation():
     )
 
 
-# system: str, seps: list = [" ", "</s>"],
-def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
+# system: str,
+def build_prompt(prompt_type: str = 'full',  seps: list = [" ", "</s>"], assistant_name: str = None,
                  assistant_persona: list[str] = None, user_persona: list[str] = None, memory: list[str] = None,
-                 messages: list[str] = [], knowledge_response: str = None, style: str = None, ):
+                 messages: list[str] = [], knowledge_response: str = None, style: str = None,
+                 history_first: bool = False,):
     """
     Args:
         prompt_type: a string describing the type of prompt selected by the RL.
@@ -215,20 +216,32 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
         messages: history of the conversation. If memory is used it doesn't include older messages that are summarized
         knowledge_response: a string of external information to ground the answer (this is not the retrieved documents
                             or memory but a sentence that gathers the relevant information to ground the answer)
-        style: the tone/style of writing that the response should convey ( sad, happy, joy etc... it is actually Image Chat that has style)
+        style: the tone/style of writing that the response should convey
+        ( sad, happy, joy etc... it is actually Image Chat that has style)
+        history_first : a boolean stating whether or not to start the prompt with conversation history or not. In this
+                        case history is appended at the end. (This is default)
         #TODO: it could be interesting to dynamically (automatically determine the writing style ?)
         #TODO: it should be better evaluated: rather than just engagingness, assess persona consistency, style etc
-         #TODO persona and style Adjustment to enhance open domain conversation
+        #TODO persona and style Adjustment to enhance open domain conversation
     Return:
         ret: a string corresponding to the built prompt. In the case external information/instruction should be added
             in between speakers back-and-fourths we return the last users messages modified to add them
     """
 
     separation = "." + f"{sep}"
+    ret = ""
+    if history_first:
+        for i, (role, message) in enumerate(messages[:-1]):
+            if message:
+                ret += role + ": " + message + seps[i % 2]
+            else:
+                ret += role + ":"  # in this case it may be for the first user empty message
+        messages = messages[-1]
+        ret += "\n\n"
 
     if args.shallow_roleplay:
 
-        ret = f"""
+        ret += f"""
 {shallow_desc + sep} 
 
 {"The following sentences describe assistant personality and background: " +
@@ -244,7 +257,7 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
         if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
             assistant_persona = [assistant_persona[0]]  # to display only one
 
-        ret = f"""
+        ret += f"""
 {system_desc + sep}
 {"You SHALL ALWAYS respond in French." + sep}
 {"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
@@ -263,7 +276,7 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
             ret += f"""
 {"You know this about the user you are talking to: " + separation.join(user_persona)
  + ". Use it to adapt your conversation to the user" if user_persona else ""}
- 
+
 """
 
         if memory:
@@ -273,13 +286,17 @@ def build_prompt(prompt_type: str = 'full', assistant_name: str = None,
 """  # in SOTA this is not how memory is used, stored in a based and queried when necessary using retrieval & matching
         # technique
 
+        # "+1" in the condition bellow in order to include the assistant empty message added in the API
         ret += f"""
-{"Complete the following conversation with a short and precise sentence as your character would.  "
- "Always speak with new and unique messages that haven't been said in the conversation :"
-        if len(messages) > 1
-        else "Start a conversation in French, empathically as your character would. Write your input only, not the user's "
-             "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
-             "You can limit yourself to a greeting:"}
+{"Answer the following user message with a short and precise sentence as your character would. " 
+ "Always speak with new and unique messages that haven't been said in the conversation :" if history_first 
+else
+"Complete the following conversation with a short and precise sentence as your character would.  "
+"Always speak with new and unique messages that haven't been said in the conversation :" if len(messages) + 1 > 1  
+else 
+"Start a conversation in French, empathically as your character would. Write your input only, not the user's "
+"response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
+"You can limit yourself to a greeting:"}
 
 """
         if knowledge_response:
@@ -338,6 +355,8 @@ def init_conversation(sender_id, user_utterance):
     # chosen_persona = get_desired_persona(user_utterance=user_utterance)  # case when user want to assign a persona.
     chosen_persona = False
     text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
+    # TODO: as we no longer add history by ourselves, the case were user assign persona me disturb the
+    #  User: Assistant: </s> history template in the conversation.py  take care of it: first empty message ?, cut hist ?
     if chosen_persona:
         assistant_persona = chosen_persona.get("persona", assistant_persona)
         text = f"The user assigned the following persona: {'|'.join(assistant_persona)} "
