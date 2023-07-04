@@ -114,7 +114,7 @@ def load_model(
 
     if cpu_offloading:
         # raises an error on incompatible platforms
-        from transformers import BitsAndBytesConfig
+        # from transformers import BitsAndBytesConfig
         if "max_memory" in kwargs:
             kwargs["max_memory"]["cpu"] = str(math.floor(psutil.virtual_memory().available / 2**20)) + 'Mib'
         kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit_fp32_cpu_offload=cpu_offloading)
