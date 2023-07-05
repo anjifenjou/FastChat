@@ -87,6 +87,7 @@ def load_model(
     model_path, device, num_gpus, max_gpu_memory=None, load_8bit=False, cpu_offloading=False, debug=False
 ):
     cpu_offloading = raise_warning_for_incompatible_cpu_offloading_configuration(device, load_8bit, cpu_offloading)
+    load_in_4bit = False  # TODO should pass it in args with the others
     if device == "cpu":
         kwargs = {"torch_dtype": torch.float32}
     elif device == "cuda":
@@ -153,6 +154,7 @@ def load_model(
     # New: Guanaco
     elif "guanaco" in model_path: # load at least the 33b and 65b
         if '65' in model_path:
+            load_in_4bit = True
             tokenizer = AutoTokenizer.from_pretrained("TheBloke/guanaco-65B-HF", use_fast=True)
         # elif '33' in model_path:
         #    tokenizer = AutoTokenizer.from_pretrained("TheBloke/guanaco-65B-HF", use_fast=True)
@@ -160,7 +162,7 @@ def load_model(
             tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            load_in_4bit=True,
+            load_in_4bit=load_in_4bit,
             torch_dtype=torch.bfloat16,
             device_map="auto",
             max_memory={i: '24000MB' for i in range(torch.cuda.device_count())},
@@ -179,7 +181,8 @@ def load_model(
         )
         raise_warning_for_old_weights(model_path, model)
 
-    if (device == "cuda" and num_gpus == 1 and not cpu_offloading) or device == "mps":
+    if ((device == "cuda" and num_gpus == 1 and not cpu_offloading) or device == "mps") and not load_in_4bit:
+        # TODO better condition on the fact that we load in 4bit or not, it should be passed via args
         model.to(device)
 
     if debug:
