@@ -87,12 +87,7 @@ def apply_compressed_weight(module, compressed_state_dict, target_device, prefix
 
 def load_compress_model(model_path, device, torch_dtype):
     # partially load model
-    if "guanaco" in model_path:  # load at least the 33b and 65b
-        if '65' in model_path:
-            # load_in_4bit = True
-            tokenizer = AutoTokenizer.from_pretrained("TheBloke/guanaco-65B-HF", use_fast=True)
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
     base_pattern = os.path.join(model_path, "pytorch_model-*.bin")
     files = glob.glob(base_pattern)
 
@@ -105,10 +100,8 @@ def load_compress_model(model_path, device, torch_dtype):
     compressed_state_dict = {}
 
     for filename in tqdm(files):
-        print(f"File: {filename} \n", flush=True)
         tmp_state_dict = torch.load(filename)
         for name in tmp_state_dict:
-            print(f"{name} \n", flush=True)
             if name in linear_weights:
                 tensor = tmp_state_dict[name].to(device).data.to(torch_dtype)
                 compressed_state_dict[name] = compress(tensor, default_compression_config)

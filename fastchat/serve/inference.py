@@ -154,7 +154,7 @@ def load_model(
     # New: Guanaco
     elif "guanaco" in model_path:  # load at least the 33b and 65b
         if '65' in model_path:
-            # load_in_4bit = True
+            load_in_4bit = True
             tokenizer = AutoTokenizer.from_pretrained("TheBloke/guanaco-65B-HF", use_fast=True)
         # elif '33' in model_path:
         #    tokenizer = AutoTokenizer.from_pretrained("TheBloke/guanaco-65B-HF", use_fast=True)
