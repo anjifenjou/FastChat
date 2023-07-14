@@ -115,6 +115,10 @@ def user_message():
                                            memory=request_memory_content, messages=history,
                                            knowledge_response=knowledge_response, style="",
                                            history_first=get_bool(args.history_first))
+        elif args.fsb:
+            prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+                                           assistant_name=assistant_name, messages=history, style="",
+                                           history_first=get_bool(args.history_first))
         else:
             prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                            assistant_name=assistant_name, messages=history, style="",
@@ -242,7 +246,10 @@ def build_prompt(prompt_type: str = 'full',  seps: list = [" ", "</s>"], assista
         messages = messages[-1]
         ret += "\n\n"
 
-    if get_bool(args.shallow_roleplay):
+    if args.fsb:
+        ret += build_fsb_prompt(persona_chat_dataset=pchat_dataset)
+
+    elif get_bool(args.shallow_roleplay):
 
         ret += f"""
 {shallow_desc + sep} 
@@ -254,7 +261,6 @@ def build_prompt(prompt_type: str = 'full',  seps: list = [" ", "</s>"], assista
         if len(messages) > 1 else
         "Start a conversation as the assistant with the described character would with a short response in French: "}
 """
-
     else:  # advanced and verbose prompt
 
         if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
@@ -320,6 +326,37 @@ else
             # in this way also at next turn user messages would be as if there were new informations
 
     return ret, messages
+
+
+def convert_sample_to_shot_persona(sample, with_knowledge=None, prefix=""):
+    def get_speaker_type(index: int = 0):
+        return "User" if index % 2 == 0 else "Persona"  # the second utterance is that of the "model"
+
+    prefix += "Persona Information:\n"  # "\n before? same for dialogue
+    for s in sample["personality"]:  # TODO to use the same function even at inference we need to check if "personality"
+                                     # is among the keys
+        prefix += s+"\n"
+
+    prefix += "Dialogue:\n"
+    for j, utterance in enumerate(sample["utterances"][-1]["history"]): # last history contains whole conv.
+        # for turn in sample["dialogue"]:
+        speaker_type = get_speaker_type(j)
+        prefix += f"{speaker_type}: {utterance}" + "\n"
+
+    prefix += f"{get_speaker_type(j + 1)}: {sample['utterances'][-1]['candidate'][-1]}" + "\n"
+    # last utterance candidate is part of the dialogue so we add it
+    return prefix
+
+
+def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
+    # 6 was the best in FSB
+    prompt = ""
+    random.seed(seed)
+    for i, sample in enumerate(random.shuffle(persona_chat_dataset)): # random selection with the same seed
+        if i < num_shot:
+            prompt += convert_sample_to_shot_persona(sample,prompt=prompt)
+            i += 1
+    return prompt
 
 
 def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
@@ -630,6 +667,7 @@ def init_app_parameters():
                         help="Whether or not to put history before the instructions")
     parser.add_argument("--shallow_roleplay", type=str, default="False",
                         help="Whether or not to run a shallow prompt version of the roleplay.")
+    parser.add_argument('--fsb', action='store_true', help='Enable FewShot Bot')
     args = parser.parse_args()
     # PERSONALITIES
     data_path = args.data_path
@@ -640,11 +678,11 @@ def init_app_parameters():
     client.set_baseurl(os.getenv("FASTCHAT_BASEURL"))
 
     print("Arguments: %s", pformat(args))
-    return args, personalities
+    return args, personalities, raw_dataset
 
 
 if __name__ == "__main__":  # setting up args
-    args, pchat_personalities = init_app_parameters()
+    args, pchat_personalities, pchat_dataset = init_app_parameters()
     # system_desc = "A chat between a curious user and an artificial intelligence assistant. " \
     #               "The assistant is engaging, empathetic, and role plays as the character described below. " \
     #               "The assistant gives helpful, detailed and polite an answers to user's questions " \
