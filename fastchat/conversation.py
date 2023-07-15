@@ -396,6 +396,15 @@ conv_guanaco = Conversation(
     sep="\n### ",
     stop_str="###",)
 
+# FSB vicuna template
+conv_fsb = Conversation(
+    system=" ",
+    roles=("User", "Persona"),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.ADD_COLON_SINGLE,
+    sep="\n",
+)
 conv_templates = {
     "baize": conv_baize,
     "conv_one_shot": conv_one_shot,
@@ -406,7 +415,8 @@ conv_templates = {
     "vicuna_v1.1": conv_vicuna_v1_1,
     "rwkv": conv_rwkv,
     # New
-    "guanaco": conv_guanaco
+    "guanaco": conv_guanaco,
+    "fsb": conv_fsb
 }
 
 
@@ -429,6 +439,8 @@ def get_default_conv_template(model_name):
     # New
     elif "guanaco" in model_name:
         return conv_guanaco
+    elif "fsb" in model_name:
+        return conv_fsb
     return conv_one_shot
 
 
