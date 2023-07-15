@@ -114,7 +114,7 @@ def get_gen_params(
         # UPDATE: as prompt are build be being sent to API additional fields are removed
 
         msg_role = message["role"]
-
+        is_fsb = False
         if msg_role == "system":
             conv.system = message.get("content", conv.system)
         elif msg_role == "user":
