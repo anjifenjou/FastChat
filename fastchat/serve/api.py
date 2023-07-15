@@ -121,6 +121,8 @@ def get_gen_params(
             conv.append_message(conv.roles[0], message["content"])
         elif msg_role == "assistant":
             conv.append_message(conv.roles[1], message["content"])
+        elif msg_role == "bot_type":
+            is_fsb = message["content"] == 'fsb'
 
         # # New conversation metadata fields
         # elif msg_role == "request_type":
@@ -141,7 +143,8 @@ def get_gen_params(
             raise ValueError(f"Unknown role: {msg_role}")
 
     # Add a blank message for the assistant.
-    conv.append_message(conv.roles[1], None)
+    if not is_fsb:
+        conv.append_message(conv.roles[1], None)
 
     if is_chatglm:
         prompt = conv.messages[conv.offset:]
