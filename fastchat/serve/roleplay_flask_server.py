@@ -8,6 +8,7 @@ from datasets import load_dataset
 import random
 from json import JSONDecodeError
 from nltk.tokenize import RegexpTokenizer
+from deep_translator import GoogleTranslator
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
@@ -32,11 +33,23 @@ def user_message():
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
+        if args.fsb and args.fsb_translation:
+            user_utterance = translator_fr_en.translate(user_utterance)
         bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
-        if not get_bool(args.shallow_roleplay):
+        # todo add the case of fsb in init
+        # todo: when translation is used maybe keep track of original message
+        # todo: more generally keep track of all external knowledge used
+
+        if args.fsb and args.fsb_translation:
+            pass
+        elif not get_bool(args.shallow_roleplay):
             bot_response = clean_bot_response(bot_response)
 
     else:
+        if args.fsb and args.fsb_translation:
+            original_utterance = user_utterance  # todo save it
+            conv_map[sender_id]["messages_fr"].append({'role': 'user', 'content': original_utterance})
+            user_utterance = translator_fr_en.translate(user_utterance)
         conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
         conv_map[sender_id]["num_user_turns"] += 1
         conversation = conv_map[sender_id]
@@ -119,6 +132,8 @@ def user_message():
             prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                            assistant_name=assistant_name, messages=history, style="",
                                            history_first=get_bool(args.history_first))
+
+            # need to translate input and outputs
         else:
             prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                            assistant_name=assistant_name, messages=history, style="",
@@ -148,7 +163,15 @@ def user_message():
         ################################################################################################################
         #                                            UPDATE CONVERSATION HISTORY
         ################################################################################################################
-        conv_map[sender_id]["messages"].append({'role': 'assistant', 'content': bot_response})
+        if args.fsb and args.fsb_translation:
+            translated_bot_response = translator_en_fr.translate(bot_response)
+            conv_map[sender_id]["messages_fr"].append({'role': 'user', 'content': translated_bot_response})
+            conv_map[sender_id]["messages"].append({'role': 'assistant', 'content': bot_response})  # en
+            bot_response = translated_bot_response  # fr to display
+
+        else:
+            conv_map[sender_id]["messages"].append({'role': 'assistant', 'content': bot_response})
+
         conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
         history = conv_map[sender_id]["messages"]
 
@@ -248,7 +271,7 @@ def build_prompt(prompt_type: str = 'full',  seps: list = [" ", "</s>"], assista
 
     if args.fsb:
         ret += build_fsb_prompt(persona_chat_dataset=pchat_dataset)
-
+        messages[-1]['content'] = translator_fr_en.translate(messages[-1]['content'])
     elif get_bool(args.shallow_roleplay):
 
         ret += f"""
@@ -316,13 +339,13 @@ else
             # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
             # conversation
 
-            messages[-1] = messages[-1][
-                               'content'] + "\n" + f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
+            messages[-1]['content'] = messages[-1]['content'] + "\n" + \
+                                      f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
             # last message now includes additional knowledge
 
         if style:  # should be the last directive before model response # if in another langugae than response language
             # it can be misleading
-            messages[-1] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
+            messages[-1]['content'] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
             # in this way also at next turn user messages would be as if there were new informations
 
     return ret, messages
@@ -408,6 +431,7 @@ def init_conversation(sender_id, user_utterance):
                          "memory": [],
                          "assistant_name": assistant_name,
                          "messages": [],
+                         "messages_fr": [],
                          "last_output_size": 0,
                          "num_memory_access": 0,
                          # "chosen_persona": chosen_persona is not None
@@ -420,6 +444,11 @@ def init_conversation(sender_id, user_utterance):
                              user_persona=conversation_dict.get("user_persona", []), style="")
 
     request_msg = [{"role": 'system', 'content': prompt}]
+
+    if args.fsb and args.fsb_translation:
+        conv_map[sender_id]["messages_fr"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
+        user_utterance = translator_fr_en.translate(user_utterance)
+
     if not chosen_persona:
         request_msg += [{"role": "user", "content": user_utterance}]
         conv_map[sender_id]["num_user_turns"] += 1
@@ -429,24 +458,41 @@ def init_conversation(sender_id, user_utterance):
 
     while response_with_complete_sentence is None:
         lang, prob = '', 0
-        while lang != 'fr' or prob < 0.60:
+        if args.fsb and args.fsb_translation:
             completion = client.ChatCompletion.create(
                 model=args.worker_name,
                 messages=request_msg,
                 # n=3 if chosen_persona else 1,
                 max_tokens=50  # force the bot to start with a short message
             )
+
             uncleaned_first_message = completion.choices[0].message.content
             print(uncleaned_first_message)
             bot_first_message = clean_bot_response(uncleaned_first_message)
-            lang, prob = detect_majority_language(bot_first_message)
-        response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
 
+        else:
+            while lang != 'fr' or prob < 0.60:
+                completion = client.ChatCompletion.create(
+                    model=args.worker_name,
+                    messages=request_msg,
+                    # n=3 if chosen_persona else 1,
+                    max_tokens=50  # force the bot to start with a short message
+                )
+                uncleaned_first_message = completion.choices[0].message.content
+                print(uncleaned_first_message)
+                bot_first_message = clean_bot_response(uncleaned_first_message)
+                lang, prob = detect_majority_language(bot_first_message)
+
+        response_with_complete_sentence = remove_incomplete_sentence(bot_first_message)
     bot_first_message = response_with_complete_sentence
 
     tokens_usage = completion.choices[0].usage
     conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
-    conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]
+    conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]  # if fsb eng is stored
+    if args.fsb and args.fsb_translation:
+        bot_first_message = translator_en_fr.translate(bot_first_message)  # to display french answer & save it
+        conv_map[sender_id]["messages_fr"] += [{'role': 'assistant', 'content': bot_first_message}]
+
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
 
     print(f"Uncleaned bot first message: {uncleaned_first_message}")
@@ -640,7 +686,11 @@ def generate_knowledge_response(user_utterance):  # Call a search server
 def init_app_parameters():
     parser = ArgumentParser()
     parser.add_argument("--data_path", type=str,
-                        default="/Volumes/Crucial/Thesis/Datasets/PersonaChat/personachat_self_original.json",
+                        default="/Users/njifiahmed/Desktop/Thesis LIA/Travaux/PipelineDIAL/data/PersonaChat.zip",
+                        help="Path to  PersonaChat dataset to get personalities")
+    parser.add_argument("--fr_data_path", type=str,
+                        default="/Users/njifiahmed/Desktop/Thesis LIA/Travaux/PipelineDIAL/data/PersonaChat.json",
+                        #todo: add french personachat dataset path
                         help="Path to  PersonaChat dataset to get personalities")
     parser.add_argument("--prompt_length_threshold", type=int, default=1024,  # may be reduce it
                         help="Number of token we don't want to exceed. "
@@ -668,6 +718,9 @@ def init_app_parameters():
     parser.add_argument("--shallow_roleplay", type=str, default="False",
                         help="Whether or not to run a shallow prompt version of the roleplay.")
     parser.add_argument('--fsb', action='store_true', help='Enable FewShot Bot')
+    parser.add_argument('--fsb_translation', action='store_true', help='If we keep FSB as is in english with external '
+                                                                       'translation before and after'
+                                                                       'If not example should be in French')
     args = parser.parse_args()
     # PERSONALITIES
     data_path = args.data_path
@@ -710,6 +763,9 @@ if __name__ == "__main__":  # setting up args
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
     approx_tokens_per_word = args.approx_tokens_per_word
+    if args.fsb_translation:
+        translator_fr_en = GoogleTranslator(source='fr', target='en')
+        translator_en_fr = GoogleTranslator(source='en', target='fr')
 
     app.run(host=args.host if args.host else "0.0.0.0",
             port=args.port if args.port else 5008)
