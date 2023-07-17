@@ -29,10 +29,13 @@ def user_message():
         json_query = json.loads(json_query)
     user_utterance = json_query['user_utterance']
     sender_id = json_query['sender_id']
+
     ####################################################################################################################
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
+        worker_name = json_query['worker_name']
+        conv_topic = json_query['topic']
         if args.fsb and args.fsb_translation:
             user_utterance = translator_fr_en.translate(user_utterance)
         bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
@@ -40,9 +43,7 @@ def user_message():
         # todo: when translation is used maybe keep track of original message
         # todo: more generally keep track of all external knowledge used
 
-        if args.fsb and args.fsb_translation:
-            pass
-        elif not get_bool(args.shallow_roleplay):
+        if not (get_bool(args.shallow_roleplay) or args.fsb):
             bot_response = clean_bot_response(bot_response)
 
     else:
@@ -50,10 +51,12 @@ def user_message():
             original_utterance = user_utterance  # todo save it
             conv_map[sender_id]["messages_fr"].append({'role': 'user', 'content': original_utterance})
             user_utterance = translator_fr_en.translate(user_utterance)
+
         conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
         conv_map[sender_id]["num_user_turns"] += 1
         conversation = conv_map[sender_id]
         history = conversation["messages"]
+        # worker_name = conversation["worker_name"]
 
         ################################################################################################################
         #                                         ADDING ASSISTANT PERSONA TRAITS IN THE REQUEST
@@ -65,86 +68,88 @@ def user_message():
         #     {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
         #     {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
 
-        if not get_bool(args.shallow_roleplay):
-            #  already taken into account in prompt builder
-            # request_messages = [{"role": "request_type", "content": "roleplay_chat"},
-            #                    {"role": "system", "content": prompt}]
+        if args.fsb:
 
-            # TODO we should test search module here or later after model first response try (depending of what it says)
-            ############################################################################################################
-            #                                                  SEARCH MODULE
-            ############################################################################################################
-            search_decision = get_search_decision(user_utterance)
-            knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
-            # request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
-
-            ############################################################################################################
-            #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
-            ############################################################################################################
-            user_persona = conversation.get("user_persona", [])
-            # if user_persona:
-            #     request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
-
-            ############################################################################################################
-            #                            ACCESSING MEMORY IF CONDITION REACHED (modify history then)
-            ############################################################################################################
-            # if approx_new_prompt_length + args.max_new_tokens + 8 > args.prompt_length_threshold:
-            # access memory when reaching condition
-
-            request_memory_content = []
-            approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
-            # TODO import the LLaMA tokenizer here (to have exact count)
-            approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
-
-            # + new_user_persona_length
-            if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
-                # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
-                conv_map[sender_id]['num_memory_access'] += 1
-
-                if not conv_map[sender_id]["memory"]:  # No memory built yet => build it up to the current point
-                    start = 0  # if there is no memory then we are at the start of the conversation
-                    stop = len(history[:-1])  # to keep at least the last user input
-                    conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
-                                                                         start=start, stop=stop))
-                request_memory_content, history = \
-                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
-
-                # request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
-
-            elif conv_map[sender_id]['num_memory_access'] > 0:
-                # send the memories already accessed in preceding turns if the condition for new history is not reached
-                request_memory_content, history = \
-                    get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
-
-                # request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
-
-        ################################################################################################################
-        #                                    ADD HISTORY AND SEND REQUEST TO API
-        ################################################################################################################
-        # request_messages += history
-
-            prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
-                                           assistant_name=assistant_name, user_persona=user_persona,
-                                           memory=request_memory_content, messages=history,
-                                           knowledge_response=knowledge_response, style="",
-                                           history_first=get_bool(args.history_first))
-        elif args.fsb:
-            prompt, history = build_prompt(prompt_type='full', roles=["User", "Persona"], seps=["/n", "/n"],
+            prompt, history = build_prompt(prompt_type='full', roles=["User", "Persona"], seps=["\n", "\n"],
                                            assistant_persona=assistant_persona, assistant_name=assistant_name,
                                            messages=history, style="", history_first=get_bool(args.history_first))
-
             # need to translate input and outputs
         else:
-            prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
-                                           assistant_name=assistant_name, messages=history, style="",
-                                           history_first=get_bool(args.history_first))
+            if not get_bool(args.shallow_roleplay):
+                #  already taken into account in prompt builder
+                # request_messages = [{"role": "request_type", "content": "roleplay_chat"},
+                #                    {"role": "system", "content": prompt}]
+
+                # TODO we should test search module here or later after model first response try (depending of what it says)
+                ############################################################################################################
+                #                                                  SEARCH MODULE
+                ############################################################################################################
+                search_decision = get_search_decision(user_utterance)
+                knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
+                # request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
+
+                ############################################################################################################
+                #                          ADDING USER PERSONA TRAITS (Built from conversation by the agent)
+                ############################################################################################################
+                user_persona = conversation.get("user_persona", [])
+                # if user_persona:
+                #     request_messages.append({"role": "user_persona", "content": '||'.join(user_persona)})
+
+                ############################################################################################################
+                #                            ACCESSING MEMORY IF CONDITION REACHED (modify history then)
+                ############################################################################################################
+                # if approx_new_prompt_length + args.max_new_tokens + 8 > args.prompt_length_threshold:
+                # access memory when reaching condition
+
+                request_memory_content = []
+                approximate_input_tokens = approx_tokens_per_word * words_count(user_utterance)
+                # TODO import the LLaMA tokenizer here (to have exact count)
+                approx_new_prompt_length = conv_map[sender_id]["last_output_size"] + approximate_input_tokens
+
+                # + new_user_persona_length
+                if approx_new_prompt_length + args.max_new_tokens + 8 > 2048:  # access memory when reaching condition
+                    # 2048 is the max context length of LLaMA # TODO may be consider a while loop ?
+                    conv_map[sender_id]['num_memory_access'] += 1
+
+                    if not conv_map[sender_id]["memory"]:  # No memory built yet => build it up to the current point
+                        start = 0  # if there is no memory then we are at the start of the conversation
+                        stop = len(history[:-1])  # to keep at least the last user input
+                        conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
+                                                                             start=start, stop=stop))
+                    request_memory_content, history = \
+                        get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+
+                    # request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+
+                elif conv_map[sender_id]['num_memory_access'] > 0:
+                    # send the memories already accessed in preceding turns if the condition for new history is not reached
+                    request_memory_content, history = \
+                        get_memory_content(sender_id, memory_index=conv_map[sender_id]['num_memory_access'])
+
+                    # request_messages.append({"role": "memory", "content": '||'.join(request_memory_content)})
+
+            ################################################################################################################
+            #                                    ADD HISTORY AND SEND REQUEST TO API
+            ################################################################################################################
+            # request_messages += history
+
+                prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+                                               assistant_name=assistant_name, user_persona=user_persona,
+                                               memory=request_memory_content, messages=history,
+                                               knowledge_response=knowledge_response, style="",
+                                               history_first=get_bool(args.history_first))
+
+            else:
+                prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+                                               assistant_name=assistant_name, messages=history, style="",
+                                               history_first=get_bool(args.history_first))
 
         request_messages = [{"role": "system", "content": prompt}] + history
         # Send a request to the API
         response_with_complete_sentence = None
         while response_with_complete_sentence is None:
             completion = client.ChatCompletion.create(
-                model=args.worker_name,
+                model=conversation['worker_name'],  # TO SEND REQUEST TO THE RIGHT MODEL
                 messages=request_messages,
                 max_tokens=args.max_new_tokens,  # added as the model tends to talk too much
             )
@@ -175,32 +180,35 @@ def user_message():
         conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
         history = conv_map[sender_id]["messages"]
 
-        ################################################################################################################
-        #                                           USER PERSONA BUILDING MODULE
-        thrshld_len = len(history) + 1 if conv_map[sender_id]["chosen_persona"] else len(history)
-        # in case of chosen persona (user assigning to assistant, their first message is not added to history)
-        ################################################################################################################
-        if history and thrshld_len % (num_turn_threshold * 2) == 0:
-            user_utterances = [message for message in history[- num_turn_threshold * 2:] if message["role"] == 'user']
-            conv_map[sender_id]["user_persona"].append(generate_user_persona(user_utterances))
+        if not get_bool(args.shallow_roleplay):
+            ############################################################################################################
+            #                                           USER PERSONA BUILDING MODULE
+            thrshld_len = len(history) + 1 if conv_map[sender_id]["chosen_persona"] else len(history)
+            # in case of chosen persona (user assigning to assistant, their first message is not added to history)
+            ############################################################################################################
+            if history and thrshld_len % (num_turn_threshold * 2) == 0:
+                user_utterances = [message for message in history[- num_turn_threshold * 2:]
+                                   if message["role"] == 'user']
+                conv_map[sender_id]["user_persona"].append(generate_user_persona(user_utterances))
 
-        ################################################################################################################
-        #                                               MEMORY BUILDING MODULE
-        ################################################################################################################
-        if history and thrshld_len % num_turn_threshold == 0:  # may be improve this based on Few-Shot Bot
-            if conv_map[sender_id]["memory"]:
-                start = conv_map[sender_id]["memory"][-1]["stop"]
-            else:
-                start = 0
-            stop = start + num_turn_threshold
-            conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
-                                                                 start=start, stop=stop))
+            ############################################################################################################
+            #                                               MEMORY BUILDING MODULE
+            ############################################################################################################
+            if history and thrshld_len % num_turn_threshold == 0:  # may be improve this based on Few-Shot Bot
+                if conv_map[sender_id]["memory"]:
+                    start = conv_map[sender_id]["memory"][-1]["stop"]
+                else:
+                    start = 0
+                stop = start + num_turn_threshold
+                conv_map[sender_id]["memory"].append(generate_memory(history[start: stop],
+                                                                     start=start, stop=stop))
 
     # print(bot_response)
     # print()
     return jsonify(
         {
-            'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
+            # 'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
+            'persona': conv_map[sender_id]["assistant_persona"],
             'messages': conv_map[sender_id]["messages"],
             'chatbot_utterance': bot_response,
             'num_user_turns': conv_map[sender_id]["num_user_turns"],
@@ -238,7 +246,8 @@ def format_history(messages, roles, seps):
             formatted_history += role + ": " + message["content"] + seps[i % 2]  # Todo: not working if user message not first
         else:
             formatted_history += role + ":"  # in this case it may be for the first user empty message
-        return formatted_history
+        # print(formatted_history)
+    return formatted_history
 
 
 def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
@@ -281,105 +290,112 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
         ret += "\n\n"
 
     if args.fsb:
-        ret += build_fsb_prompt(persona_chat_dataset=pchat_dataset)
+        # print("fsb PROMPT")
+        # ret += build_fsb_prompt(persona_chat_dataset=pchat_dataset)
+        ret += fsb_prompt
         # messages[-1]['content'] = translator_fr_en.translate(messages[-1]['content'])
         ret += "Persona Information:\n"
+        messages = messages + [{"role": "assistant", 'content': None}]
+        # print(messages)
         for s in assistant_persona:
-            ret += s + "\n"
-        ret += format_history(messages + [{"role": "assistant", 'content': None}], roles, seps)
+            ret += s.strip() + "\n"
+        ret += format_history(messages, roles, seps)
+        # print(ret)
+
         messages = [{"role": "bot_type", "content": 'fsb'}]
         # ret += roles[1] + ": "
 
-    elif get_bool(args.shallow_roleplay):
+    else:  # not few shot bot
+        if get_bool(args.shallow_roleplay):
 
-        ret += f"""
-{shallow_desc + sep} 
-
-{"The following sentences describe assistant personality and background: " +
- " ".join(assistant_persona) + sep2 if assistant_persona else ""}  
-
-{"Answer the following user message as the assistant with the described character would with a short response in French:" if history_first 
-else
-"Complete the following conversation as the assistant with the described character would with a short response in French: " if len(messages) + 1 > 1 
-else
-"Start a conversation as the assistant with the described character would with a short response in French: "}
-"""
-    else:  # advanced and verbose prompt
-
-        if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
-            assistant_persona = [assistant_persona[0]]  # to display only one
-
-        ret += f"""
-{system_desc + sep}
-{"You SHALL ALWAYS respond in French." + sep}
-{"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
-{"You have a name. "}{"Your name is " + assistant_name + "." + sep if assistant_name else
-        "If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}
-"""
-
-        if assistant_persona:
             ret += f"""
-{"YOUR personality is: " + separation.join(assistant_persona) if assistant_persona else ""}
-{"Remember, you always stay on character. You are the character described above." if assistant_persona else ""}   
+    {shallow_desc + sep} 
+    
+    {"The following sentences describe assistant personality and background: " +
+     " ".join(assistant_persona) + sep2 if assistant_persona else ""}  
+    
+    {"Answer the following user message as the assistant with the described character would with a short response in French:" if history_first 
+    else
+    "Complete the following conversation as the assistant with the described character would with a short response in French: " if len(messages) + 1 > 1 
+    else
+    "Start a conversation as the assistant with the described character would with a short response in French: "}
+    """
+        else:  # advanced and verbose prompt
 
-"""
+            if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
+                assistant_persona = [assistant_persona[0]]  # to display only one
 
-        if user_persona:
             ret += f"""
-{"You know this about the user you are talking to: " + separation.join(user_persona)
- + ". Use it to adapt your conversation to the user" if user_persona else ""}
+    {system_desc + sep}
+    {"You SHALL ALWAYS respond in French." + sep}
+    {"You ACT as a regular person. You are NOT a chatbot. You are NOT an assistant."}
+    {"You have a name. "}{"Your name is " + assistant_name + "." + sep if assistant_name else
+            "If asked you SHALL ALWAYS choose and give a REAL name adapted to your personality described below."}
+    """
 
-"""
+            if assistant_persona:
+                ret += f"""
+    {"YOUR personality is: " + separation.join(assistant_persona) if assistant_persona else ""}
+    {"Remember, you always stay on character. You are the character described above." if assistant_persona else ""}   
+    
+    """
 
-        if memory:
+            if user_persona:
+                ret += f"""
+    {"You know this about the user you are talking to: " + separation.join(user_persona)
+     + ". Use it to adapt your conversation to the user" if user_persona else ""}
+    
+    """
+
+            if memory:
+                ret += f"""
+    {"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
+     sep.join(memory) if memory else ""}    
+    """  # in SOTA this is not how memory is used, stored in a based and queried when necessary using retrieval & matching
+            # technique
+
+            # "+1" in the condition bellow in order to include the assistant empty message added in the API
             ret += f"""
-{"Here is a summary of previous sessions of this conversation to help you remember what has been said: " +
- sep.join(memory) if memory else ""}    
-"""  # in SOTA this is not how memory is used, stored in a based and queried when necessary using retrieval & matching
-        # technique
+    {"Answer the following user message with a short and precise sentence as your character would. " 
+     "Always speak with new and unique messages that haven't been said in the conversation :" if history_first 
+    else
+    "Complete the following conversation with a short and precise sentence as your character would.  "
+    "Always speak with new and unique messages that haven't been said in the conversation :" if len(messages) + 1 > 1  
+    else 
+    "Start a conversation in French, empathically as your character would. Write your input only, not the user's "
+    "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
+    "You can limit yourself to a greeting:"}
+    
+    """
+            # TODO: keep track of knowledge and style if used
+            if knowledge_response:
+                # should we add new line here ? # may be add new line after each speaker response?
+                # messages[-1] = messages[-1] + "\n" + f" Voici des informations supplémentaires récupérées sur Internet" \
+                #                f" à propos du dernier message de l'utilisateur:" \
+                #                f"{knowledge_response}. Utilise cela pour construire ta réponse. "
+                # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
+                # conversation
 
-        # "+1" in the condition bellow in order to include the assistant empty message added in the API
-        ret += f"""
-{"Answer the following user message with a short and precise sentence as your character would. " 
- "Always speak with new and unique messages that haven't been said in the conversation :" if history_first 
-else
-"Complete the following conversation with a short and precise sentence as your character would.  "
-"Always speak with new and unique messages that haven't been said in the conversation :" if len(messages) + 1 > 1  
-else 
-"Start a conversation in French, empathically as your character would. Write your input only, not the user's "
-"response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
-"You can limit yourself to a greeting:"}
+                messages[-1]['content'] = messages[-1]['content'] + "\n" + \
+                                          f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
+                # last message now includes additional knowledge
 
-"""
-        # TODO: keep track of knowledge and style if used
-        if knowledge_response:
-            # should we add new line here ? # may be add new line after each speaker response?
-            # messages[-1] = messages[-1] + "\n" + f" Voici des informations supplémentaires récupérées sur Internet" \
-            #                f" à propos du dernier message de l'utilisateur:" \
-            #                f"{knowledge_response}. Utilise cela pour construire ta réponse. "
-            # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
-            # conversation
-
-            messages[-1]['content'] = messages[-1]['content'] + "\n" + \
-                                      f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
-            # last message now includes additional knowledge
-
-        if style:  # should be the last directive before model response # if in another langugae than response language
-            # it can be misleading
-            messages[-1]['content'] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
-            # in this way also at next turn user messages would be as if there were new informations
+            if style:  # should be the last directive before model response # if in another langugae than response language
+                # it can be misleading
+                messages[-1]['content'] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
+                # in this way also at next turn user messages would be as if there were new informations
 
     return ret, messages
 
 
-def convert_sample_to_shot_persona(sample, with_knowledge=None, prefix=""):
+def convert_sample_to_shot_persona(sample, with_knowledge=None): #, prefix=""):
     def get_speaker_type(index: int = 0):
         return "User" if index % 2 == 0 else "Persona"  # the second utterance is that of the "model"
 
-    prefix += "Persona Information:\n"  # "\n" before? same for dialogue
+    prefix = "Persona Information:\n"  # "\n" before? same for dialogue
     for s in sample["personality"]:  # TODO to use the same function even at inference we need to check if "personality"
                                      # is among the keys
-        prefix += s + "\n"
+        prefix += s.strip() + "\n"
 
     prefix += "Dialogue:\n"
     for j, utterance in enumerate(sample["utterances"][-1]["history"]):  # last history contains whole conv.
@@ -387,19 +403,20 @@ def convert_sample_to_shot_persona(sample, with_knowledge=None, prefix=""):
         speaker_type = get_speaker_type(j)
         prefix += f"{speaker_type}: {utterance}" + "\n"
 
-    prefix += f"{get_speaker_type(j + 1)}: {sample['utterances'][-1]['candidate'][-1]}" + "\n"
+    prefix += f"{get_speaker_type(j + 1)}: {sample['utterances'][-1]['candidates'][-1].strip()}" + "\n"
     # last utterance candidate is part of the dialogue so we add it
     return prefix
 
 
 def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     # 6 was the best in FSB
+    # print(persona_chat_dataset)
     prompt = ""
     random.seed(seed)
     for i, sample in enumerate(random.shuffle(persona_chat_dataset)):  # random selection with the same seed
         if i < num_shot:
-            prompt += convert_sample_to_shot_persona(sample, prompt=prompt)
-            i += 1
+            prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
+    print(prompt)
     return prompt
 
 
@@ -426,7 +443,7 @@ def detect_majority_language(text):
     return lang, prob
 
 
-def init_conversation(sender_id, user_utterance):
+def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): # TODO: deal with the case of null user_utterance at the beginning
     """
     This function initialize the conversation metadata (persona, name, etc.)
     Either from PersonaChat Dataset or from the user (retrieved via a specific designed prompt on the user's first input
@@ -439,12 +456,14 @@ def init_conversation(sender_id, user_utterance):
     # chosen_persona = get_desired_persona(user_utterance=user_utterance)  # case when user want to assign a persona.
     chosen_persona = False
     text = f"Persona is randomly assigned from personaChat: {'|'.join(assistant_persona)} "
-    # TODO: as we no longer add history by ourselves, the case were user assign persona me disturb the
+    # TODO: as we no longer add history by ourselves, the case were user assign persona may disturb the
     #  User: Assistant: </s> history template in the conversation.py  take care of it: first empty message ?, cut hist ?
     if chosen_persona:
         assistant_persona = chosen_persona.get("persona", assistant_persona)
         text = f"The user assigned the following persona: {'|'.join(assistant_persona)} "
         assistant_name = chosen_persona.get("name", assistant_name)
+        # to combine it with the case where the is basically no user utterance
+        user_utterance = None
     print(text)
 
     conversation_dict = {"assistant_persona": assistant_persona,
@@ -455,8 +474,10 @@ def init_conversation(sender_id, user_utterance):
                          "messages_fr": [],
                          "last_output_size": 0,
                          "num_memory_access": 0,
+                         "topic": topic if topic is not None else '',
                          # "chosen_persona": chosen_persona is not None
                          "chosen_persona": chosen_persona,
+                         "worker_name": worker_name if worker_name is not None else args.worker_name,
                          "num_user_turns": 0}
 
     conv_map[sender_id] = conversation_dict
@@ -490,9 +511,9 @@ def init_conversation(sender_id, user_utterance):
 
     while response_with_complete_sentence is None:
         lang, prob = '', 0
-        if args.fsb and args.fsb_translation:
+        if args.fsb:
             completion = client.ChatCompletion.create(
-                model=args.worker_name,
+                model=conv_map[sender_id]["worker_name"],  # worker_name if worker_name is not None else args.worker_name,
                 messages=request_msg,
                 # n=3 if chosen_persona else 1,
                 max_tokens=50  # force the bot to start with a short message
@@ -505,7 +526,7 @@ def init_conversation(sender_id, user_utterance):
         else:
             while lang != 'fr' or prob < 0.60:
                 completion = client.ChatCompletion.create(
-                    model=args.worker_name,
+                    model=conv_map[sender_id]["worker_name"],
                     messages=request_msg,
                     # n=3 if chosen_persona else 1,
                     max_tokens=50  # force the bot to start with a short message
@@ -722,7 +743,7 @@ def init_app_parameters():
                         default="/Users/njifiahmed/Desktop/Thesis LIA/Travaux/PipelineDIAL/data/PersonaChat.zip",
                         help="Path to  PersonaChat dataset to get personalities")
     parser.add_argument("--fr_data_path", type=str,
-                        default="/Users/njifiahmed/Desktop/Thesis LIA/Travaux/PipelineDIAL/data/PersonaChat.json",
+                        default="/Users/njifiahmed/Desktop/Thesis LIA/Travaux/PipelineDIAL/data/PersonaChat_FR.zip",
                         #todo: add french personachat dataset path
                         help="Path to  PersonaChat dataset to get personalities")
     parser.add_argument("--prompt_length_threshold", type=int, default=1024,  # may be reduce it
@@ -758,13 +779,13 @@ def init_app_parameters():
     # PERSONALITIES
     data_path = args.data_path
     raw_dataset = load_dataset("json", data_files=data_path, field="train")
-    personalities = raw_dataset["train"]["personality"]
+    personalities = load_dataset("json", data_files=data_path, field="valid")["train"]["personality"]
 
     os.environ['FASTCHAT_BASEURL'] = args.api_address
     client.set_baseurl(os.getenv("FASTCHAT_BASEURL"))
 
     print("Arguments: %s", pformat(args))
-    return args, personalities, raw_dataset
+    return args, personalities, raw_dataset["train"]
 
 
 if __name__ == "__main__":  # setting up args
@@ -796,11 +817,15 @@ if __name__ == "__main__":  # setting up args
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
     approx_tokens_per_word = args.approx_tokens_per_word
-    if args.fsb_translation:
-        translator_fr_en = GoogleTranslator(source='fr', target='en')
-        translator_en_fr = GoogleTranslator(source='en', target='fr')
+    if args.fsb:
+        if args.fsb_translation:
+            translator_fr_en = GoogleTranslator(source='fr', target='en')
+            translator_en_fr = GoogleTranslator(source='en', target='fr')
+        fsb_prompt = build_fsb_prompt(persona_chat_dataset=pchat_dataset, num_shot=6)
+        # print(fsb_prompt)
 
     app.run(host=args.host if args.host else "0.0.0.0",
-            port=args.port if args.port else 5008)
+            port=args.port if args.port else 5008,
+            debug=True)
 
 
