@@ -154,7 +154,6 @@ class Conversation:
                     ret += role + ": " + message + seps[i % 2]
                 else:
                     ret += role + ":"
-            print(ret)
             return ret
         elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
             ret = self.system
@@ -450,4 +449,4 @@ if __name__ == "__main__":
     conv.append_message(conv.roles[1], "Hi!")
     conv.append_message(conv.roles[0], "How are you?")
     conv.append_message(conv.roles[1], None)
-    print(conv.get_prompt())
+    # print(conv.get_prompt())

@@ -38,8 +38,9 @@ def user_message():
         conv_topic = json_query['topic']
         if args.fsb and args.fsb_translation:
             user_utterance = translator_fr_en.translate(user_utterance)
-        bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id)
-        # todo add the case of fsb in init
+        bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id,
+                                         worker_name=worker_name, topic=conv_topic)
+
         # todo: when translation is used maybe keep track of original message
         # todo: more generally keep track of all external knowledge used
 
@@ -250,10 +251,42 @@ def format_history(messages, roles, seps):
     return formatted_history
 
 
+def convert_sample_to_shot_persona(sample, with_knowledge=None):  # , prefix=""):
+    def get_speaker_type(index: int = 0):
+        return "User" if index % 2 == 0 else "Persona"  # the second utterance is that of the "model"
+
+    prefix = "Persona Information:\n"  # "\n" before? same for dialogue
+    for s in sample["personality"]:
+                                     # is among the keys
+        prefix += s.strip() + "\n"
+
+    prefix += "Dialogue:\n"
+    for j, utterance in enumerate(sample["utterances"][-1]["history"]):  # last history contains whole conv.
+        # for turn in sample["dialogue"]:
+        speaker_type = get_speaker_type(j)
+        prefix += f"{speaker_type}: {utterance.strip()}" + "\n"
+
+    prefix += f"{get_speaker_type(j + 1)}: {sample['utterances'][-1]['candidates'][-1].strip()}" + "\n"
+    # last utterance candidate is part of the dialogue so we add it
+    return prefix
+
+
+def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
+    # 6 was the best in FSB
+    # print(persona_chat_dataset)
+    prompt = ""
+    random.seed(seed)
+    for i, sample in enumerate(random.shuffle(persona_chat_dataset)):  # random selection with the same seed
+        if i < num_shot:
+            prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
+    print(prompt)
+    return prompt
+
+
 def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
                  assistant_name: str = None,  assistant_persona: list[str] = None,
                  user_persona: list[str] = None, memory: list[str] = None, messages: list[str] = [],
-                 knowledge_response: str = None, style: str = None, history_first: bool = False,):
+                 knowledge_response: str = None, style: str = None, history_first: bool = False, topic: str = None):
     """
     Args:
         prompt_type: a string describing the type of prompt selected by the RL.
@@ -273,6 +306,8 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
         ( sad, happy, joy etc... it is actually Image Chat that has style)
         history_first : a boolean stating whether or not to start the prompt with conversation history or not. In this
                         case history is appended at the end. (This is default)
+        topic: A string defining the topic to be used to start bot-bot conversations
+
         #TODO: it could be interesting to dynamically (automatically determine the writing style ?)
         #TODO: it should be better evaluated: rather than just engagingness, assess persona consistency, style etc
         #TODO persona and style Adjustment to enhance open domain conversation
@@ -295,13 +330,13 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
         ret += fsb_prompt
         # messages[-1]['content'] = translator_fr_en.translate(messages[-1]['content'])
         ret += "Persona Information:\n"
-        messages = messages + [{"role": "assistant", 'content': None}]
+        # messages = messages + [{"role": "assistant", 'content': None}]
         # print(messages)
         for s in assistant_persona:
             ret += s.strip() + "\n"
-        ret += format_history(messages, roles, seps)
+        ret += format_history(messages + [{"role": "assistant", 'content': None}], roles, seps)
         # print(ret)
-
+        # TODO: take topic into account here ?
         messages = [{"role": "bot_type", "content": 'fsb'}]
         # ret += roles[1] + ": "
 
@@ -313,13 +348,25 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
     
     {"The following sentences describe assistant personality and background: " +
      " ".join(assistant_persona) + sep2 if assistant_persona else ""}  
-    
-    {"Answer the following user message as the assistant with the described character would with a short response in French:" if history_first 
-    else
-    "Complete the following conversation as the assistant with the described character would with a short response in French: " if len(messages) + 1 > 1 
-    else
-    "Start a conversation as the assistant with the described character would with a short response in French: "}
     """
+    # {"Answer the following user message as the assistant with the described character would with a short response in French " if history_first
+    # else
+    # "Complete the following conversation as the assistant with the described character would with a short response in French " if len(messages) + 1 > 1
+    # else
+    # "Start a conversation as the assistant with the described character would with a short sentence in French " }
+    # """
+            if len(messages) + 1 > 1:
+                if history_first:
+                    ret += "Answer the following user message as the assistant with the described character would" \
+                           " with a short response in French: \n"
+                else:
+                    ret += "Complete the following conversation as the assistant with the described character would" \
+                           " with a short response in French: \n"
+            else:
+                ret += f"Start a conversation as the assistant with the described character would with a short " \
+                       f"sentence in French " + f"on the following " \
+                                                f"topic \"{topic}\" :\n" if topic is not None else ":\n"
+
         else:  # advanced and verbose prompt
 
             if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
@@ -355,18 +402,34 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
             # technique
 
             # "+1" in the condition bellow in order to include the assistant empty message added in the API
-            ret += f"""
-    {"Answer the following user message with a short and precise sentence as your character would. " 
-     "Always speak with new and unique messages that haven't been said in the conversation :" if history_first 
-    else
-    "Complete the following conversation with a short and precise sentence as your character would.  "
-    "Always speak with new and unique messages that haven't been said in the conversation :" if len(messages) + 1 > 1  
-    else 
-    "Start a conversation in French, empathically as your character would. Write your input only, not the user's "
-    "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
-    "You can limit yourself to a greeting:"}
-    
-    """
+            if len(messages) + 1 > 1:
+                if history_first:
+                    ret += "Answer the following user message with a short and precise sentence as your character " \
+                           "would. Always speak with new and unique messages that haven't been said in the " \
+                           "conversation :"
+                else:
+                    ret += "Complete the following conversation with a short and precise sentence as your character " \
+                           "would. Always speak with new and unique messages that haven't been said in the " \
+                           "conversation : \n"
+            else:
+                ret += "Start a conversation in French, empathically as your character would. Write your input only, " \
+                       "not the user's response. Do not offer your help, be nice you are talking to a user who just" \
+                       " wants to have a discussion." \
+                       + f"The discussion is about the following topic \"{topic}\" :\n" if topic is not None \
+                    else "You can limit yourself to a greeting: \n"
+
+    #         ret += f"""
+    # {"Answer the following user message with a short and precise sentence as your character would. "
+    #  "Always speak with new and unique messages that haven't been said in the conversation :" if history_first
+    # else
+    # "Complete the following conversation with a short and precise sentence as your character would.  "
+    # "Always speak with new and unique messages that haven't been said in the conversation :" if len(messages) + 1 > 1
+    # else
+    # "Start a conversation in French, empathically as your character would. Write your input only, not the user's "
+    # "response. Do not offer your help, be nice you are talking to a user who just wants to have a discussion. "
+    # "You can limit yourself to a greeting:"}
+    #
+    # """
             # TODO: keep track of knowledge and style if used
             if knowledge_response:
                 # should we add new line here ? # may be add new line after each speaker response?
@@ -386,38 +449,6 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
                 # in this way also at next turn user messages would be as if there were new informations
 
     return ret, messages
-
-
-def convert_sample_to_shot_persona(sample, with_knowledge=None): #, prefix=""):
-    def get_speaker_type(index: int = 0):
-        return "User" if index % 2 == 0 else "Persona"  # the second utterance is that of the "model"
-
-    prefix = "Persona Information:\n"  # "\n" before? same for dialogue
-    for s in sample["personality"]:  # TODO to use the same function even at inference we need to check if "personality"
-                                     # is among the keys
-        prefix += s.strip() + "\n"
-
-    prefix += "Dialogue:\n"
-    for j, utterance in enumerate(sample["utterances"][-1]["history"]):  # last history contains whole conv.
-        # for turn in sample["dialogue"]:
-        speaker_type = get_speaker_type(j)
-        prefix += f"{speaker_type}: {utterance}" + "\n"
-
-    prefix += f"{get_speaker_type(j + 1)}: {sample['utterances'][-1]['candidates'][-1].strip()}" + "\n"
-    # last utterance candidate is part of the dialogue so we add it
-    return prefix
-
-
-def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
-    # 6 was the best in FSB
-    # print(persona_chat_dataset)
-    prompt = ""
-    random.seed(seed)
-    for i, sample in enumerate(random.shuffle(persona_chat_dataset)):  # random selection with the same seed
-        if i < num_shot:
-            prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
-    print(prompt)
-    return prompt
 
 
 def words_count(utterance, nltk_tokenizer=RegexpTokenizer(r'\w+')):
@@ -482,16 +513,17 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
 
     conv_map[sender_id] = conversation_dict
     # TODO: put the prompt type in flask args or in the request sent to the flask
+    init_messages = [{"role": "user", "content": user_utterance}] if user_utterance is not None else []
     if args.fsb:
         prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona, roles=["User", "Persona"],
                                    seps=["\n", "\n"], assistant_name=assistant_name,
-                                   messages=[{"role": "user", "content": user_utterance}] if not chosen_persona else [],
+                                   messages=init_messages,
                                    user_persona=conversation_dict.get("user_persona", []), style="",)
     else:
         prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                    assistant_name=assistant_name,
                                    user_persona=conversation_dict.get("user_persona", []), style="",
-                                   messages=[{"role": "user", "content": user_utterance}] if not chosen_persona else [],
+                                   messages=init_messages,
                                    )
 
     request_msg = [{"role": 'system', 'content': prompt}] + msg  # msg either history or empty or bot type for fsb
@@ -500,7 +532,8 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
         conv_map[sender_id]["messages_fr"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
         user_utterance = translator_fr_en.translate(user_utterance)
 
-    if not chosen_persona:
+    # if not chosen_persona:
+    if user_utterance is not None:  # as is set to None when chosen Persona
         # if args.fsb:
         #     request_msg += msg
         # request_msg += [{"role": "user", "content": user_utterance}]
@@ -540,7 +573,8 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
     bot_first_message = response_with_complete_sentence
 
     tokens_usage = completion.choices[0].usage
-    conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
+    # conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
+    conv_map[sender_id]["messages"] = [] if user_utterance is None else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]  # if fsb eng is stored
     if args.fsb and args.fsb_translation:
         bot_first_message = translator_en_fr.translate(bot_first_message)  # to display french answer & save it
