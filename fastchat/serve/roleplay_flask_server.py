@@ -38,9 +38,9 @@ def user_message():
         conv_topic = json_query['topic']
         if args.fsb and args.fsb_translation:
             user_utterance = translator_fr_en.translate(user_utterance)
-        bot_response = init_conversation(user_utterance=user_utterance, sender_id=sender_id,
-                                         worker_name=worker_name, topic=conv_topic)
-
+        bot_response, init_prompt = init_conversation(user_utterance=user_utterance, sender_id=sender_id,
+                                                      worker_name=worker_name, topic=conv_topic)
+        conv_map[sender_id]['init_prompt'] = init_prompt
         # todo: when translation is used maybe keep track of original message
         # todo: more generally keep track of all external knowledge used
 
@@ -210,6 +210,7 @@ def user_message():
         {
             # 'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
             'persona': conv_map[sender_id]["assistant_persona"],
+            'init_prompt': conv_map[sender_id]['init_prompt'],
             'messages': conv_map[sender_id]["messages"],
             'chatbot_utterance': bot_response,
             'num_user_turns': conv_map[sender_id]["num_user_turns"],
@@ -275,8 +276,8 @@ def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     # 6 was the best in FSB
     # print(persona_chat_dataset)
     prompt = ""
-    random.seed(seed)
-    for i, sample in enumerate(random.shuffle(persona_chat_dataset)):  # random selection with the same seed
+    #random.seed(seed)
+    for i, sample in enumerate(persona_chat_dataset.shuffle(seed)):  # random selection with the same seed
         if i < num_shot:
             prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
     print(prompt)
@@ -414,9 +415,11 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
             else:
                 ret += "Start a conversation in French, empathically as your character would. Write your input only, " \
                        "not the user's response. Do not offer your help, be nice you are talking to a user who just" \
-                       " wants to have a discussion." \
-                       + f"The discussion is about the following topic \"{topic}\" :\n" if topic is not None \
-                    else "You can limit yourself to a greeting: \n"
+                       " wants to have a discussion."
+                if topic is not None:
+                    ret += f"The discussion is about the following topic \"{topic}\" :\n"
+                else:
+                    ret += "You can limit yourself to a greeting: \n"
 
     #         ret += f"""
     # {"Answer the following user message with a short and precise sentence as your character would. "
@@ -518,12 +521,12 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
         prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona, roles=["User", "Persona"],
                                    seps=["\n", "\n"], assistant_name=assistant_name,
                                    messages=init_messages,
-                                   user_persona=conversation_dict.get("user_persona", []), style="",)
+                                   user_persona=conversation_dict.get("user_persona", []), style="", topic=topic)
     else:
         prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                    assistant_name=assistant_name,
                                    user_persona=conversation_dict.get("user_persona", []), style="",
-                                   messages=init_messages,
+                                   messages=init_messages, topic=topic
                                    )
 
     request_msg = [{"role": 'system', 'content': prompt}] + msg  # msg either history or empty or bot type for fsb
@@ -584,7 +587,7 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
 
     print(f"Uncleaned bot first message: {uncleaned_first_message}")
 
-    return bot_first_message
+    return bot_first_message, prompt
     # jsonify({
     #    'persona': ' || '.join(conv_map[sender_id]["assistant_persona"]),
     #    'messages': conv_map[sender_id]["messages"],
