@@ -12,6 +12,7 @@ from deep_translator import GoogleTranslator
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+
 import re
 from langdetect import detect, detect_langs, DetectorFactory
 
@@ -27,6 +28,8 @@ def user_message():
     json_query = request.get_json(force=True, silent=False)
     if isinstance(json_query, str):
         json_query = json.loads(json_query)
+
+    prompt_type = json_query['prompt_type']
     user_utterance = json_query['user_utterance']
     sender_id = json_query['sender_id']
 
@@ -36,7 +39,7 @@ def user_message():
     if sender_id not in conv_map.keys():
         worker_name = json_query['worker_name']
         conv_topic = json_query['topic']
-        if args.fsb and args.fsb_translation:
+        if (prompt_type.lower() == "fsb" or args.fsb) and args.fsb_translation:
             user_utterance = translator_fr_en.translate(user_utterance)
         bot_response, init_prompt = init_conversation(user_utterance=user_utterance, sender_id=sender_id,
                                                       worker_name=worker_name, topic=conv_topic)
@@ -44,11 +47,11 @@ def user_message():
         # todo: when translation is used maybe keep track of original message
         # todo: more generally keep track of all external knowledge used
 
-        if not (get_bool(args.shallow_roleplay) or args.fsb):
+        if not (prompt_type.lower() == "shallow" or args.shallow_roleplay or args.fsb):
             bot_response = clean_bot_response(bot_response)
 
     else:
-        if args.fsb and args.fsb_translation:
+        if (prompt_type.lower() == "fsb" or args.fsb) and args.fsb_translation:
             original_utterance = user_utterance  # todo save it
             conv_map[sender_id]["messages_fr"].append({'role': 'user', 'content': original_utterance})
             user_utterance = translator_fr_en.translate(user_utterance)
@@ -69,14 +72,14 @@ def user_message():
         #     {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
         #     {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
 
-        if args.fsb:
+        if prompt_type.lower() == "fsb" or args.fsb:
 
             prompt, history = build_prompt(prompt_type='full', roles=["User", "Persona"], seps=["\n", "\n"],
                                            assistant_persona=assistant_persona, assistant_name=assistant_name,
-                                           messages=history, style="", history_first=get_bool(args.history_first))
+                                           messages=history, style="", history_first=args.history_first)
             # need to translate input and outputs
         else:
-            if not get_bool(args.shallow_roleplay):
+            if not (args.shallow_roleplay or prompt_type.lower() == "shallow"):
                 #  already taken into account in prompt builder
                 # request_messages = [{"role": "request_type", "content": "roleplay_chat"},
                 #                    {"role": "system", "content": prompt}]
@@ -138,12 +141,12 @@ def user_message():
                                                assistant_name=assistant_name, user_persona=user_persona,
                                                memory=request_memory_content, messages=history,
                                                knowledge_response=knowledge_response, style="",
-                                               history_first=get_bool(args.history_first))
+                                               history_first=args.history_first)
 
             else:
                 prompt, history = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                                assistant_name=assistant_name, messages=history, style="",
-                                               history_first=get_bool(args.history_first))
+                                               history_first=args.history_first)
 
         request_messages = [{"role": "system", "content": prompt}] + history
         # Send a request to the API
@@ -181,7 +184,7 @@ def user_message():
         conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
         history = conv_map[sender_id]["messages"]
 
-        if not get_bool(args.shallow_roleplay):
+        if not args.shallow_roleplay:
             ############################################################################################################
             #                                           USER PERSONA BUILDING MODULE
             thrshld_len = len(history) + 1 if conv_map[sender_id]["chosen_persona"] else len(history)
@@ -276,7 +279,6 @@ def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     # 6 was the best in FSB
     # print(persona_chat_dataset)
     prompt = ""
-    #random.seed(seed)
     for i, sample in enumerate(persona_chat_dataset.shuffle(seed)):  # random selection with the same seed
         if i < num_shot:
             prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
@@ -284,13 +286,14 @@ def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     return prompt
 
 
-def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
+def build_prompt(prompt_type: str = '', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
                  assistant_name: str = None,  assistant_persona: list[str] = None,
                  user_persona: list[str] = None, memory: list[str] = None, messages: list[str] = [],
-                 knowledge_response: str = None, style: str = None, history_first: bool = False, topic: str = None):
+                 knowledge_response: str = None, style: str = None, history_first: bool = False, topic: str = None,):
     """
     Args:
-        prompt_type: a string describing the type of prompt selected by the RL.
+        prompt_type: a string describing the type of prompt to associate to a model: fsb, shallow, advanced
+        prompt_structure: a string describing the type of prompt selected by the RL.
                     Can be 'full', 'inc' or 'wind'. default 'full'
         system: A string describing how the system should globally behave
         roles: A list of how the model designate each type of speaker
@@ -325,7 +328,7 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
         messages = messages[-1]
         ret += "\n\n"
 
-    if args.fsb:
+    if args.fsb or prompt_type.lower() == "fsb":
         # print("fsb PROMPT")
         # ret += build_fsb_prompt(persona_chat_dataset=pchat_dataset)
         ret += fsb_prompt
@@ -348,7 +351,7 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
         # ret += roles[1] + ": "
 
     else:  # not few shot bot
-        if get_bool(args.shallow_roleplay):
+        if args.shallow_roleplay or prompt_type.lower() == "shallow":
 
             ret += f"""
     {shallow_desc + sep} 
@@ -379,8 +382,8 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
 
         else:  # advanced and verbose prompt
 
-            if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
-                assistant_persona = [assistant_persona[0]]  # to display only one
+            # if prompt_structure == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
+            #     assistant_persona = [assistant_persona[0]]  # to display only one
 
             ret += f"""
     {system_desc + sep}
@@ -486,7 +489,7 @@ def detect_majority_language(text):
     return lang, prob
 
 
-def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): # TODO: deal with the case of null user_utterance at the beginning
+def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, prompt_type: str = ''):
     """
     This function initialize the conversation metadata (persona, name, etc.)
     Either from PersonaChat Dataset or from the user (retrieved via a specific designed prompt on the user's first input
@@ -526,13 +529,13 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
     conv_map[sender_id] = conversation_dict
     # TODO: put the prompt type in flask args or in the request sent to the flask
     init_messages = [{"role": "user", "content": user_utterance}] if user_utterance is not None else []
-    if args.fsb:
-        prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona, roles=["User", "Persona"],
-                                   seps=["\n", "\n"], assistant_name=assistant_name,
+    if args.fsb or prompt_type.lower() == 'fsb':
+        prompt, msg = build_prompt(prompt_type=prompt_type, assistant_persona=assistant_persona,
+                                   roles=["User", "Persona"],  seps=["\n", "\n"], assistant_name=assistant_name,
                                    messages=init_messages,
                                    user_persona=conversation_dict.get("user_persona", []), style="", topic=topic)
     else:
-        prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
+        prompt, msg = build_prompt(prompt_type=prompt_type, assistant_persona=assistant_persona,
                                    assistant_name=assistant_name,
                                    user_persona=conversation_dict.get("user_persona", []), style="",
                                    messages=init_messages, topic=topic
@@ -540,7 +543,7 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
 
     request_msg = [{"role": 'system', 'content': prompt}] + msg  # msg either history or empty or bot type for fsb
 
-    if args.fsb and args.fsb_translation:
+    if (args.fsb or prompt_type == 'fsb') and args.fsb_translation:
         conv_map[sender_id]["messages_fr"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
         user_utterance = translator_fr_en.translate(user_utterance)
 
@@ -556,7 +559,7 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
 
     while response_with_complete_sentence is None:
         lang, prob = '', 0
-        if args.fsb:
+        if args.fsb or prompt_type == 'fsb':
             completion = client.ChatCompletion.create(
                 model=conv_map[sender_id]["worker_name"],  # worker_name if worker_name is not None else args.worker_name,
                 messages=request_msg,
@@ -588,7 +591,7 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None): 
     # conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] = [] if user_utterance is None else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]  # if fsb eng is stored
-    if args.fsb and args.fsb_translation:
+    if (args.fsb or prompt_type == 'fsb') and args.fsb_translation:
         bot_first_message = translator_en_fr.translate(bot_first_message)  # to display french answer & save it
         conv_map[sender_id]["messages_fr"] += [{'role': 'assistant', 'content': bot_first_message}]
 
@@ -813,9 +816,9 @@ def init_app_parameters():
                         help="Address of the flask_server host")
     parser.add_argument("--port", type=str, default=None,
                         help="port of the flask_server ")
-    parser.add_argument("--history_first", type=str, default="False",
+    parser.add_argument("--history_first",  action='store_true',
                         help="Whether or not to put history before the instructions")
-    parser.add_argument("--shallow_roleplay", type=str, default="False",
+    parser.add_argument("--shallow_roleplay", action='store_true',
                         help="Whether or not to run a shallow prompt version of the roleplay.")
     parser.add_argument('--fsb', action='store_true', help='Enable FewShot Bot')
     parser.add_argument('--fsb_translation', action='store_true', help='If we keep FSB as is in english with external '
@@ -863,11 +866,11 @@ if __name__ == "__main__":  # setting up args
     prompt_length_threshold = args.prompt_length_threshold
     num_turn_threshold = args.num_turn_threshold
     approx_tokens_per_word = args.approx_tokens_per_word
-    if args.fsb:
-        if args.fsb_translation:
-            translator_fr_en = GoogleTranslator(source='fr', target='en')
-            translator_en_fr = GoogleTranslator(source='en', target='fr')
-        fsb_prompt = build_fsb_prompt(persona_chat_dataset=pchat_dataset, num_shot=6)
+    # if args.fsb:
+    if args.fsb_translation:
+        translator_fr_en = GoogleTranslator(source='fr', target='en')
+        translator_en_fr = GoogleTranslator(source='en', target='fr')
+    fsb_prompt = build_fsb_prompt(persona_chat_dataset=pchat_dataset, num_shot=6)
         # print(fsb_prompt)
 
     app.run(host=args.host if args.host else "0.0.0.0",
