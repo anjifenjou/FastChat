@@ -335,6 +335,12 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
         # print(messages)
         for s in assistant_persona:
             ret += s.strip() + "\n"
+
+        ret += f"Dialogue:"
+        if topic is not None:
+            ret += topic + '\n'
+        else:
+            ret += '\n'
         ret += format_history(messages + [{"role": "assistant", 'content': None}], roles, seps)
         # print(ret)
         # TODO: take topic into account here ?
@@ -365,8 +371,11 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
                            " with a short response in French: \n"
             else:
                 ret += f"Start a conversation as the assistant with the described character would with a short " \
-                       f"sentence in French " + f"on the following " \
-                                                f"topic \"{topic}\" :\n" if topic is not None else ":\n"
+                       f"sentence in French "
+                if topic is not None:
+                    ret += f"on the following topic \"{topic}\" :\n"
+                else:
+                    ret += ":\n"
 
         else:  # advanced and verbose prompt
 
