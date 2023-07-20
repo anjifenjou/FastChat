@@ -30,6 +30,13 @@ def user_message():
         json_query = json.loads(json_query)
 
     prompt_type = json_query['prompt_type']
+    if prompt_type == 'fsb':
+        args.fsb = True
+    elif prompt_type == 'shallow':
+        args.shallow_roleplay = True
+    else:  # prompt_type == 'advanced':
+        args.shallow_roleplay = False
+
     user_utterance = json_query['user_utterance']
     sender_id = json_query['sender_id']
 
@@ -39,22 +46,29 @@ def user_message():
     if sender_id not in conv_map.keys():
         worker_name = json_query['worker_name']
         conv_topic = json_query['topic']
-        if (prompt_type.lower() == "fsb" or args.fsb) and args.fsb_translation:
-            user_utterance = translator_fr_en.translate(user_utterance)
+        if args.fsb and args.fsb_translation:
+            try:
+                user_utterance = translator_fr_en.translate(user_utterance)
+            except:
+                print(f"Problem with utterance {user_utterance}")
+
         bot_response, init_prompt = init_conversation(user_utterance=user_utterance, sender_id=sender_id,
                                                       worker_name=worker_name, topic=conv_topic)
         conv_map[sender_id]['init_prompt'] = init_prompt
         # todo: when translation is used maybe keep track of original message
         # todo: more generally keep track of all external knowledge used
 
-        if not (prompt_type.lower() == "shallow" or args.shallow_roleplay or args.fsb):
+        if not (args.shallow_roleplay or args.fsb):
             bot_response = clean_bot_response(bot_response)
 
     else:
-        if (prompt_type.lower() == "fsb" or args.fsb) and args.fsb_translation:
+        if args.fsb and args.fsb_translation:
             original_utterance = user_utterance  # todo save it
             conv_map[sender_id]["messages_fr"].append({'role': 'user', 'content': original_utterance})
-            user_utterance = translator_fr_en.translate(user_utterance)
+            try:
+                user_utterance = translator_fr_en.translate(user_utterance)
+            except:
+                print(f"Problem with translation of utterance:  {user_utterance}")
 
         conv_map[sender_id]["messages"].append({'role': 'user', 'content': user_utterance})
         conv_map[sender_id]["num_user_turns"] += 1
@@ -72,14 +86,14 @@ def user_message():
         #     {"role": "assistant_persona", "content": '||'.join(conv_map[sender_id]["assistant_persona"])},
         #     {"role": "assistant_name", "content": conv_map[sender_id].get("assistant_name", "")}]
 
-        if prompt_type.lower() == "fsb" or args.fsb:
+        if args.fsb:
 
             prompt, history = build_prompt(prompt_type='full', roles=["User", "Persona"], seps=["\n", "\n"],
                                            assistant_persona=assistant_persona, assistant_name=assistant_name,
                                            messages=history, style="", history_first=args.history_first)
             # need to translate input and outputs
         else:
-            if not (args.shallow_roleplay or prompt_type.lower() == "shallow"):
+            if not args.shallow_roleplay:
                 #  already taken into account in prompt builder
                 # request_messages = [{"role": "request_type", "content": "roleplay_chat"},
                 #                    {"role": "system", "content": prompt}]
@@ -173,7 +187,12 @@ def user_message():
         #                                            UPDATE CONVERSATION HISTORY
         ################################################################################################################
         if args.fsb and args.fsb_translation:
-            translated_bot_response = translator_en_fr.translate(bot_response)
+            try:
+                translated_bot_response = translator_en_fr.translate(bot_response)
+            except:
+                print(f"Problem with translation of utterance:  {user_utterance}")
+                translated_bot_response = bot_response
+
             conv_map[sender_id]["messages_fr"].append({'role': 'user', 'content': translated_bot_response})
             conv_map[sender_id]["messages"].append({'role': 'assistant', 'content': bot_response})  # en
             bot_response = translated_bot_response  # fr to display
@@ -286,14 +305,13 @@ def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     return prompt
 
 
-def build_prompt(prompt_type: str = '', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
+def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
                  assistant_name: str = None,  assistant_persona: list[str] = None,
                  user_persona: list[str] = None, memory: list[str] = None, messages: list[str] = [],
-                 knowledge_response: str = None, style: str = None, history_first: bool = False, topic: str = None,):
+                 knowledge_response: str = None, style: str = None, history_first: bool = False, topic: str = None):
     """
     Args:
-        prompt_type: a string describing the type of prompt to associate to a model: fsb, shallow, advanced
-        prompt_structure: a string describing the type of prompt selected by the RL.
+        prompt_type: a string describing the type of prompt selected by the RL.
                     Can be 'full', 'inc' or 'wind'. default 'full'
         system: A string describing how the system should globally behave
         roles: A list of how the model designate each type of speaker
@@ -328,7 +346,7 @@ def build_prompt(prompt_type: str = '', roles: list = ["USER", "ASSISTANT"], sep
         messages = messages[-1]
         ret += "\n\n"
 
-    if args.fsb or prompt_type.lower() == "fsb":
+    if args.fsb:
         # print("fsb PROMPT")
         # ret += build_fsb_prompt(persona_chat_dataset=pchat_dataset)
         ret += fsb_prompt
@@ -339,9 +357,9 @@ def build_prompt(prompt_type: str = '', roles: list = ["USER", "ASSISTANT"], sep
         for s in assistant_persona:
             ret += s.strip() + "\n"
 
-        ret += f"Dialogue:"
+        ret += f"Dialogue: "
         if topic is not None:
-            ret += topic + '\n'
+            ret += f"The topic is \"{topic}\" \n"
         else:
             ret += '\n'
         ret += format_history(messages + [{"role": "assistant", 'content': None}], roles, seps)
@@ -351,7 +369,7 @@ def build_prompt(prompt_type: str = '', roles: list = ["USER", "ASSISTANT"], sep
         # ret += roles[1] + ": "
 
     else:  # not few shot bot
-        if args.shallow_roleplay or prompt_type.lower() == "shallow":
+        if args.shallow_roleplay:
 
             ret += f"""
     {shallow_desc + sep} 
@@ -382,8 +400,8 @@ def build_prompt(prompt_type: str = '', roles: list = ["USER", "ASSISTANT"], sep
 
         else:  # advanced and verbose prompt
 
-            # if prompt_structure == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
-            #     assistant_persona = [assistant_persona[0]]  # to display only one
+            if prompt_type == 'inc':  # need to keep track of already exchanged persona traits/statements aka profiles
+                assistant_persona = [assistant_persona[0]]  # to display only one
 
             ret += f"""
     {system_desc + sep}
@@ -489,7 +507,7 @@ def detect_majority_language(text):
     return lang, prob
 
 
-def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, prompt_type: str = ''):
+def init_conversation(sender_id, user_utterance, worker_name=None, topic=None):
     """
     This function initialize the conversation metadata (persona, name, etc.)
     Either from PersonaChat Dataset or from the user (retrieved via a specific designed prompt on the user's first input
@@ -529,13 +547,13 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, p
     conv_map[sender_id] = conversation_dict
     # TODO: put the prompt type in flask args or in the request sent to the flask
     init_messages = [{"role": "user", "content": user_utterance}] if user_utterance is not None else []
-    if args.fsb or prompt_type.lower() == 'fsb':
-        prompt, msg = build_prompt(prompt_type=prompt_type, assistant_persona=assistant_persona,
-                                   roles=["User", "Persona"],  seps=["\n", "\n"], assistant_name=assistant_name,
+    if args.fsb:
+        prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona, roles=["User", "Persona"],
+                                   seps=["\n", "\n"], assistant_name=assistant_name,
                                    messages=init_messages,
                                    user_persona=conversation_dict.get("user_persona", []), style="", topic=topic)
     else:
-        prompt, msg = build_prompt(prompt_type=prompt_type, assistant_persona=assistant_persona,
+        prompt, msg = build_prompt(prompt_type='full', assistant_persona=assistant_persona,
                                    assistant_name=assistant_name,
                                    user_persona=conversation_dict.get("user_persona", []), style="",
                                    messages=init_messages, topic=topic
@@ -543,10 +561,12 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, p
 
     request_msg = [{"role": 'system', 'content': prompt}] + msg  # msg either history or empty or bot type for fsb
 
-    if (args.fsb or prompt_type == 'fsb') and args.fsb_translation:
+    if args.fsb and args.fsb_translation:
         conv_map[sender_id]["messages_fr"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
-        user_utterance = translator_fr_en.translate(user_utterance)
-
+        try:
+            user_utterance = translator_fr_en.translate(user_utterance)
+        except:
+            print(f"Problem with the translation of utterance: {user_utterance}")
     # if not chosen_persona:
     if user_utterance is not None:  # as is set to None when chosen Persona
         # if args.fsb:
@@ -559,7 +579,7 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, p
 
     while response_with_complete_sentence is None:
         lang, prob = '', 0
-        if args.fsb or prompt_type == 'fsb':
+        if args.fsb:
             completion = client.ChatCompletion.create(
                 model=conv_map[sender_id]["worker_name"],  # worker_name if worker_name is not None else args.worker_name,
                 messages=request_msg,
@@ -591,8 +611,11 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, p
     # conv_map[sender_id]["messages"] = [] if chosen_persona else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] = [] if user_utterance is None else [{'role': 'user', 'content': user_utterance}]
     conv_map[sender_id]["messages"] += [{'role': 'assistant', 'content': bot_first_message}]  # if fsb eng is stored
-    if (args.fsb or prompt_type == 'fsb') and args.fsb_translation:
-        bot_first_message = translator_en_fr.translate(bot_first_message)  # to display french answer & save it
+    if args.fsb and args.fsb_translation:
+        try:
+            bot_first_message = translator_en_fr.translate(bot_first_message)  # to display french answer & save it
+        except:
+            print(f"Problem with utterance {bot_first_message}")
         conv_map[sender_id]["messages_fr"] += [{'role': 'assistant', 'content': bot_first_message}]
 
     conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
@@ -608,17 +631,22 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None, p
 
 
 def remove_incomplete_sentence(text):
+    # print("toto")
     text = text.strip()
-
-    if text[-1] not in [".", "!", "?"]:
-        pattern = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s*'
-        phrases = re.split(pattern, text)
-        print(phrases)
-        if len(phrases) > 1:
-            phrases_sans_derniere = ' '.join(phrases[:-1])
-            text = phrases_sans_derniere
-        else:
-            return None
+    # print(text)
+    if text:
+        # print("Text not empty")
+        if text[-1] not in [".", "!", "?"]:
+            pattern = r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s*'
+            phrases = re.split(pattern, text)
+            # print(phrases)
+            if len(phrases) > 1:
+                phrases_sans_derniere = ' '.join(phrases[:-1])
+                text = phrases_sans_derniere
+            else:
+                return None
+    else:
+        return None
     return text
 
 
@@ -871,7 +899,7 @@ if __name__ == "__main__":  # setting up args
         translator_fr_en = GoogleTranslator(source='fr', target='en')
         translator_en_fr = GoogleTranslator(source='en', target='fr')
     fsb_prompt = build_fsb_prompt(persona_chat_dataset=pchat_dataset, num_shot=6)
-        # print(fsb_prompt)
+    # print(fsb_prompt)
 
     app.run(host=args.host if args.host else "0.0.0.0",
             port=args.port if args.port else 5008,

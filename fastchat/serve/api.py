@@ -153,7 +153,7 @@ def get_gen_params(
 
     if max_tokens is None:
         max_tokens = 512
-    print(prompt)
+    # print(prompt)
     gen_params = {
         "model": model_name,
         "prompt": prompt,

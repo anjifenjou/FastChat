@@ -421,7 +421,7 @@ conv_templates = {
 
 def get_default_conv_template(model_name):
     model_name = model_name.lower()
-    if "vicuna" in model_name or "output" in model_name:
+    if "vicuna" in model_name or "output" in model_name or 'llama' in model_name:
         return conv_vicuna_v1_1
     elif "koala" in model_name:
         return conv_koala_v1
