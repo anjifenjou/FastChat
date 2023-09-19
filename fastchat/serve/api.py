@@ -153,7 +153,7 @@ def get_gen_params(
 
     if max_tokens is None:
         max_tokens = 512
-    # print(prompt)
+    print(prompt)
     gen_params = {
         "model": model_name,
         "prompt": prompt,
@@ -181,6 +181,7 @@ async def chat_completion(model_name: str, gen_params: Dict[str, Any]):
         logger.debug(f"model_name: {model_name}, worker_addr: {worker_addr}")
 
         output = ""
+        usage = None
         delimiter = b"\0"
         async with client.stream(
             "POST",

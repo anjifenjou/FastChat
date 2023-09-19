@@ -182,7 +182,7 @@ class ModelWorker:
             ret = {
                 "text": server_error_msg,
                 "error_code": 1,
-                # "usage": usage,  # New
+                "usage": None,  # New
             }
             yield json.dumps(ret).encode() + b"\0"
 
