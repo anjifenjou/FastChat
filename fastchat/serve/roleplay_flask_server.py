@@ -9,12 +9,13 @@ import random
 from json import JSONDecodeError
 from nltk.tokenize import RegexpTokenizer
 from deep_translator import GoogleTranslator
+from ast import literal_eval
+import re
+from langdetect import detect, detect_langs, DetectorFactory
+import requests
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
-
-import re
-from langdetect import detect, detect_langs, DetectorFactory
 
 conv_map = {}  # a dictionary of active conversations
 
@@ -44,7 +45,7 @@ def user_message():
     #                                    CONVERSATION INITIALIZATION MODULE
     ####################################################################################################################
     if sender_id not in conv_map.keys():
-        worker_name = json_query['worker_name']
+        worker_name = json_query.get('worker_name', args.worker_name)
         conv_topic = json_query['topic']
         if args.fsb and args.fsb_translation:
             try:
@@ -100,10 +101,31 @@ def user_message():
 
                 # TODO we should test search module here or later after model first response try (depending of what it says)
                 ############################################################################################################
-                #                                                  SEARCH MODULE
+                #                                                  EXTERNAL MODULES
                 ############################################################################################################
-                search_decision = get_search_decision(user_utterance)
-                knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
+                # search_decision = get_search_decision(user_utterance)
+                # knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
+                knowledge_response = ""
+                # send request to the MDB moduleHandler
+                mdb_module_response = requests.post(url=f"{args.modules_handler_address}/send_conversation",
+                                                    json={"last_utterance": user_utterance,
+                                                          "history": history})  # "requested_module": "search"})
+
+                knowledge_response = mdb_module_response.json()["response"]
+                if isinstance(knowledge_response, list):
+                    knowledge_response = '\n'.join(knowledge_response)
+
+                if knowledge_response is not None:
+                    # search_time = sum([v for v in list(mdb_module_response.json()["time"].values())])
+                    if isinstance(mdb_module_response.json()["time"], dict):
+                        search_time = mdb_module_response.json()["time"]["total"]
+                    else:
+                        search_time = mdb_module_response.json()["time"]
+                    # TODO : keep search results with bot message when updating  history later (with URLS and titles)
+                    print(f"Search time: {search_time:.3f} seconds")
+
+                else:
+                    print("No Search or internal error in the search server not returning any documents")
                 # request_messages += [{"role": "knowledge_response", "content": knowledge_response}]
 
                 ############################################################################################################
@@ -200,6 +222,10 @@ def user_message():
         else:
             conv_map[sender_id]["messages"].append({'role': 'assistant', 'content': bot_response})
 
+        # if knowledge_response:
+        # Todo:keep track of the step where knowledge as been used and the associated knowledge
+        #  may be create a new rasa table where this should be stored
+
         conv_map[sender_id]["last_output_size"] = tokens_usage["total_tokens"]
         history = conv_map[sender_id]["messages"]
 
@@ -215,7 +241,7 @@ def user_message():
                 conv_map[sender_id]["user_persona"].append(generate_user_persona(user_utterances))
 
             ############################################################################################################
-            #                                               MEMORY BUILDING MODULE
+            #                                             MEMORY BUILDING MODULE
             ############################################################################################################
             if history and thrshld_len % num_turn_threshold == 0:  # may be improve this based on Few-Shot Bot
                 if conv_map[sender_id]["memory"]:
@@ -259,7 +285,23 @@ def kill_conversation():
     )
 
 
-# system: str,
+@app.route('/module_request', methods=['GET', 'POST'])
+def module_request():
+    print("Module has requested a link to the LLM")
+    json_query = request.get_json(force=True, silent=False)
+    if isinstance(json_query, str):
+        json_query = json.loads(json_query)
+    prompt = json_query['prompt']
+
+    completion = client.ChatCompletion.create(
+        model=args.worker_name,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    response = completion.choices[0].message.content
+
+    return jsonify({'response': response})
+
 
 def format_history(messages, roles, seps):
     formatted_history = ""
@@ -301,14 +343,14 @@ def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     for i, sample in enumerate(persona_chat_dataset.shuffle(seed)):  # random selection with the same seed
         if i < num_shot:
             prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
-    print(prompt)
+    # print(prompt)
     return prompt
 
 
 def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
                  assistant_name: str = None,  assistant_persona: list[str] = None,
                  user_persona: list[str] = None, memory: list[str] = None, messages: list[str] = [],
-                 knowledge_response: str = None, style: str = None, history_first: bool = False, topic: str = None):
+                 knowledge_response: str = '', style: str = None, history_first: bool = False, topic: str = None):
     """
     Args:
         prompt_type: a string describing the type of prompt selected by the RL.
@@ -464,22 +506,29 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
     #
     # """
             # TODO: keep track of knowledge and style if used
+            print(f"Knowledge response is: {knowledge_response} ")
             if knowledge_response:
                 # should we add new line here ? # may be add new line after each speaker response?
-                # messages[-1] = messages[-1] + "\n" + f" Voici des informations supplémentaires récupérées sur Internet" \
-                #                f" à propos du dernier message de l'utilisateur:" \
-                #                f"{knowledge_response}. Utilise cela pour construire ta réponse. "
-                # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
-                # conversation
+            #     # messages[-1] = messages[-1] + "\n" + f" Voici des informations supplémentaires récupérées sur Internet" \
+            #     #                f" à propos du dernier message de l'utilisateur:" \
+            #     #                f"{knowledge_response}. Utilise cela pour construire ta réponse. "
+            #     # it may be better to be less verbose on this knowledge introduction, especially that it some information inside
+            #     # conversation
+            #
+            #     messages[-1]['content'] = messages[-1]['content'] + "\n" + \
+            #                               f"Connaissances supplémentaires pour la réponse :{knowledge_response}.\n"
+            #     # last message now includes additional knowledge
+            #
+            # if style:  # should be the last directive before model response # if in another langugae than response language
+            #     # it can be misleading
+            #     messages[-1]['content'] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
+            #     # in this way also at next turn user messages would be as if there were new informations
 
-                messages[-1]['content'] = messages[-1]['content'] + "\n" + \
-                                          f"Connaissances supplémentaires pour la reponse :{knowledge_response}.\n"
-                # last message now includes additional knowledge
+                ret += f"""
+Here are some additional information that may be useful to answer user's LAST MESSAGE more factually: 
+{knowledge_response}
 
-            if style:  # should be the last directive before model response # if in another langugae than response language
-                # it can be misleading
-                messages[-1]['content'] = messages[-1]['content'] + "\n" + f"Réponds avec le style suivant:{style}. \n"
-                # in this way also at next turn user messages would be as if there were new informations
+"""
 
     return ret, messages
 
@@ -808,9 +857,35 @@ text=
     return False
 
 
-def generate_knowledge_response(user_utterance):  # Call a search server
+def format_retrieved_documents(docs):
+    formatted_docs = ""
+    return formatted_docs
+
+
+def generate_knowledge_response(messages, roles, seps,
+                                retrieved_docs):  # Call a search server
     # TODO add the query generation prompt and a call to as search engine later
-    knowledge_response = ""
+    knowledge_response_prompt = " Here is a conversation history as Input: \n"
+    # knowledge_response_prompt += format_history(messages, roles, seps)
+    # knowledge_response_prompt += "Internet Knowledge: \n"
+    # knowledge_response_prompt += format_retrieved_documents(retrieved_docs)
+
+    knowledge_response_prompt += "\nInstruction: \n\nThe following information have been retrived from internet. Use them to generate a list of three different one-sentenced statements that may be usefull to answer previous user input. The generated statements should be short variated, factual, precise, relavant and short: \n"
+
+    knowledge_response_prompt += format_retrieved_documents(retrieved_docs)
+    knowledge_response_prompt += "\n Output: \n"
+
+    completion = client.ChatCompletion.create(
+        model=args.worker_name,
+        messages=[{"role": "user", "content": knowledge_response_prompt}]
+    )
+    knowledge_response_str = completion.choices[0].message.content
+
+    try:
+        knowledge_response = literal_eval(knowledge_response_str)
+    except ValueError:
+        knowledge_response = knowledge_response_str
+
     return knowledge_response
 
 
@@ -821,7 +896,7 @@ def init_app_parameters():
                         help="Path to  PersonaChat dataset to get personalities")
     parser.add_argument("--fr_data_path", type=str,
                         default="/Users/njifiahmed/Desktop/Thesis LIA/Travaux/PipelineDIAL/data/PersonaChat_FR.zip",
-                        #todo: add french personachat dataset path
+                        # todo: add french personachat dataset path
                         help="Path to  PersonaChat dataset to get personalities")
     parser.add_argument("--prompt_length_threshold", type=int, default=1024,  # may be reduce it
                         help="Number of token we don't want to exceed. "
@@ -834,7 +909,7 @@ def init_app_parameters():
     parser.add_argument("--approx_tokens_per_word", type=float, default=1.5,  # may be reduce it
                         help="Estimate of the average number of tokens per words to comput approx tokens length"
                              "of the user input")
-    parser.add_argument("--search_server", type=str,
+    parser.add_argument("--modules_handler_address", type=str,
                         help="Address of the search server, use to query the web when needed")
     parser.add_argument("--worker_name", type=str,
                         help="name of the backend LLM")
@@ -898,7 +973,7 @@ if __name__ == "__main__":  # setting up args
     if args.fsb_translation:
         translator_fr_en = GoogleTranslator(source='fr', target='en')
         translator_en_fr = GoogleTranslator(source='en', target='fr')
-    fsb_prompt = build_fsb_prompt(persona_chat_dataset=pchat_dataset, num_shot=6)
+    fsb_prompt = build_fsb_prompt(persona_chat_dataset=pchat_dataset, num_shot=2)
     # print(fsb_prompt)
 
     app.run(host=args.host if args.host else "0.0.0.0",
