@@ -108,19 +108,23 @@ def user_message():
                 knowledge_response = ""
                 # send request to the MDB moduleHandler
                 mdb_module_response = requests.post(url=f"{args.modules_handler_address}/send_conversation",
-                                                    json={"last_utterance": user_utterance,
-                                                          "history": history})  # "requested_module": "search"})
+                                                    json={"message": user_utterance,
+                                                          "history": history,
+                                                          "requested_modules": []})  # None
 
-                knowledge_response = mdb_module_response.json()["response"]
+                # non definitive
+                # mdb_module_response = mdb_module_response.json()["internet"]
+                mdb_module_response = mdb_module_response.json()["database"]
+                knowledge_response = mdb_module_response["response"]
                 if isinstance(knowledge_response, list):
                     knowledge_response = '\n'.join(knowledge_response)
 
-                if knowledge_response is not None:
+                if knowledge_response:
                     # search_time = sum([v for v in list(mdb_module_response.json()["time"].values())])
-                    if isinstance(mdb_module_response.json()["time"], dict):
-                        search_time = mdb_module_response.json()["time"]["total"]
+                    if isinstance(mdb_module_response["time"], dict):
+                        search_time = mdb_module_response["time"]["total"]
                     else:
-                        search_time = mdb_module_response.json()["time"]
+                        search_time = mdb_module_response["time"]
                     # TODO : keep search results with bot message when updating  history later (with URLS and titles)
                     print(f"Search time: {search_time:.3f} seconds")
 
