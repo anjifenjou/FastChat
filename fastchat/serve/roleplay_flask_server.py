@@ -112,10 +112,6 @@ def user_message():
                                                            "history": history,
                                                            "requested_modules": []})  # None
 
-                # non definitive
-                # mdb_module_response = mdb_module_response.json()["internet"]
-                mdb_module_response = mdb_module_response.json()["database"]
-                knowledge_response = mdb_module_response["response"]
                 modules_hub_response = modules_hub_response.json()
                 # print(modules_hub_response)
                 modules_response_list = [f"Information from {module_name} module: \n{output['response']}"
