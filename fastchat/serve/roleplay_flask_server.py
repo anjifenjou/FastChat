@@ -105,28 +105,33 @@ def user_message():
                 ############################################################################################################
                 # search_decision = get_search_decision(user_utterance)
                 # knowledge_response = generate_knowledge_response(user_utterance) if search_decision else ""
-                knowledge_response = ""
+                # knowledge_response = ""
                 # send request to the MDB moduleHandler
-                mdb_module_response = requests.post(url=f"{args.modules_handler_address}/send_conversation",
-                                                    json={"message": user_utterance,
-                                                          "history": history,
-                                                          "requested_modules": []})  # None
+                modules_hub_response = requests.post(url=f"{args.modules_handler_address}/send_conversation",
+                                                     json={"message": user_utterance,
+                                                           "history": history,
+                                                           "requested_modules": []})  # None
 
                 # non definitive
                 # mdb_module_response = mdb_module_response.json()["internet"]
                 mdb_module_response = mdb_module_response.json()["database"]
                 knowledge_response = mdb_module_response["response"]
+                modules_hub_response = modules_hub_response.json()
+                # print(modules_hub_response)
+                modules_response_list = [f"Information from {module_name} module: \n{output['response']}"
+                                         for module_name, output in modules_hub_response.items() if output['response']]
+
+                knowledge_response = '\n\n'.join(modules_response_list) if modules_response_list else ''
+
                 if isinstance(knowledge_response, list):
                     knowledge_response = '\n'.join(knowledge_response)
 
                 if knowledge_response:
-                    # search_time = sum([v for v in list(mdb_module_response.json()["time"].values())])
-                    if isinstance(mdb_module_response["time"], dict):
-                        search_time = mdb_module_response["time"]["total"]
-                    else:
-                        search_time = mdb_module_response["time"]
+                    modules_times = {module_name: output['time']["total"] for module_name, output
+                                     in modules_hub_response.items() if output["time"] is not None}
                     # TODO : keep search results with bot message when updating  history later (with URLS and titles)
-                    print(f"Search time: {search_time:.3f} seconds")
+                    print("\n".join([f"{key} module execution time: {modules_times[key]:.3f} "
+                                     f"seconds" for key in modules_times]))
 
                 else:
                     print("No Search or internal error in the search server not returning any documents")
@@ -326,7 +331,7 @@ def convert_sample_to_shot_persona(sample, with_knowledge=None):  # , prefix="")
 
     prefix = "Persona Information:\n"  # "\n" before? same for dialogue
     for s in sample["personality"]:
-                                     # is among the keys
+        # is among the keys
         prefix += s.strip() + "\n"
 
     prefix += "Dialogue:\n"
@@ -346,13 +351,13 @@ def build_fsb_prompt(persona_chat_dataset, seed: int = 42, num_shot: int = 6):
     prompt = ""
     for i, sample in enumerate(persona_chat_dataset.shuffle(seed)):  # random selection with the same seed
         if i < num_shot:
-            prompt += convert_sample_to_shot_persona(sample) #, prefix=prompt)
+            prompt += convert_sample_to_shot_persona(sample)  # , prefix=prompt)
     # print(prompt)
     return prompt
 
 
 def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"], seps: list = [" ", "</s>"],
-                 assistant_name: str = None,  assistant_persona: list[str] = None,
+                 assistant_name: str = None, assistant_persona: list[str] = None,
                  user_persona: list[str] = None, memory: list[str] = None, messages: list[str] = [],
                  knowledge_response: str = '', style: str = None, history_first: bool = False, topic: str = None):
     """
@@ -510,8 +515,8 @@ def build_prompt(prompt_type: str = 'full', roles: list = ["USER", "ASSISTANT"],
     #
     # """
             # TODO: keep track of knowledge and style if used
-            print(f"Knowledge response is: {knowledge_response} ")
             if knowledge_response:
+                print(f"Knowledge response is: {knowledge_response} ")
                 # should we add new line here ? # may be add new line after each speaker response?
             #     # messages[-1] = messages[-1] + "\n" + f" Voici des informations supplémentaires récupérées sur Internet" \
             #     #                f" à propos du dernier message de l'utilisateur:" \
@@ -634,7 +639,8 @@ def init_conversation(sender_id, user_utterance, worker_name=None, topic=None):
         lang, prob = '', 0
         if args.fsb:
             completion = client.ChatCompletion.create(
-                model=conv_map[sender_id]["worker_name"],  # worker_name if worker_name is not None else args.worker_name,
+                model=conv_map[sender_id]["worker_name"],
+                # worker_name if worker_name is not None else args.worker_name,
                 messages=request_msg,
                 # n=3 if chosen_persona else 1,
                 max_tokens=50  # force the bot to start with a short message
@@ -923,7 +929,7 @@ def init_app_parameters():
                         help="Address of the flask_server host")
     parser.add_argument("--port", type=str, default=None,
                         help="port of the flask_server ")
-    parser.add_argument("--history_first",  action='store_true',
+    parser.add_argument("--history_first", action='store_true',
                         help="Whether or not to put history before the instructions")
     parser.add_argument("--shallow_roleplay", action='store_true',
                         help="Whether or not to run a shallow prompt version of the roleplay.")
@@ -983,5 +989,4 @@ if __name__ == "__main__":  # setting up args
     app.run(host=args.host if args.host else "0.0.0.0",
             port=args.port if args.port else 5008,
             debug=True)
-
 
