@@ -76,6 +76,20 @@ register_model_info(
 )
 
 register_model_info(
+    ["aya-23-8B", "aya-23-35B"],
+    "aya-23",
+    "https://cohere.com/blog/aya23",
+    "Aya-23 by Cohere",
+)
+
+register_model_info(
+    ["aya-101"],
+    "aya-101",
+    "https://cohere.com/research/aya/aya-model-paper.pdf",
+    "Aya-101 by Cohere",
+)
+
+register_model_info(
     [
         "zephyr-orpo-141b-A35b-v0.1",
     ],

@@ -50,6 +50,8 @@ After these steps, the new model should be compatible with most FastChat feature
 - [bofenghuang/vigogne-2-7b-chat](https://huggingface.co/bofenghuang/vigogne-2-7b-chat)
 - [camel-ai/CAMEL-13B-Combined-Data](https://huggingface.co/camel-ai/CAMEL-13B-Combined-Data)
 - [codellama/CodeLlama-7b-Instruct-hf](https://huggingface.co/codellama/CodeLlama-7b-Instruct-hf)
+- [CohereForAI/aya-101](https://huggingface.co/CohereForAI/aya-101)
+- [CohereForAI/aya-23-8B & aya-23-35B](https://huggingface.co/CohereForAI/aya-23-8B)
 - [databricks/dolly-v2-12b](https://huggingface.co/databricks/dolly-v2-12b)
 - [deepseek-ai/deepseek-llm-67b-chat](https://huggingface.co/deepseek-ai/deepseek-llm-67b-chat)
 - [deepseek-ai/deepseek-coder-33b-instruct](https://huggingface.co/deepseek-ai/deepseek-coder-33b-instruct)

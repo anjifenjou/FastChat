@@ -332,6 +332,7 @@ async def get_gen_params(
         prompt = conv.get_prompt()
         images = conv.get_images()
 
+    print(prompt)
     gen_params = {
         "model": model_name,
         "prompt": prompt,

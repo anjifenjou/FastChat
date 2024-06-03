@@ -2396,8 +2396,39 @@ class CohereAdapter(BaseModelAdapter):
         return get_conv_template("api_based_default")
 
 
+class Aya23Adapter(BaseModelAdapter):
+    """The model adapter for CohereForAI/aya-23 """
+
+    def match(self, model_path: str):
+        # return "aya" in model_path.lower() and "23" in model_path.lower() # to avoid confusion with CohereForAI/aya-101
+        return model_path in ["aya-23-8B", "aya-23-35B"]
+
+    def get_default_conv_template(self, model_path: str) -> Conversation:
+        return get_conv_template("aya-23")
+
+
+class Aya101Adapter(BaseModelAdapter):
+    """The model adapter for CohereForAI/aya-101 """
+
+    def match(self, model_path: str):
+        return model_path in ["aya-101"]
+
+    def load_model(self, model_path: str, from_pretrained_kwargs: dict):
+        revision = from_pretrained_kwargs.get("revision", "main")
+        tokenizer = AutoTokenizer.from_pretrained(model_path, revision=revision)
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_path,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True,
+            **from_pretrained_kwargs,
+        )
+        return model, tokenizer
+
+    def get_default_conv_template(self, model_path: str) -> Conversation:
+        return get_conv_template("zero_shot")
+
 class DBRXAdapter(BaseModelAdapter):
-    """The model adapter for Cohere"""
+    """The model adapter for Databricks"""
 
     def match(self, model_path: str):
         return model_path in ["dbrx-instruct"]
@@ -2513,6 +2544,8 @@ register_model_adapter(LlavaAdapter)
 register_model_adapter(YuanAdapter)
 register_model_adapter(OlmoAdapter)
 register_model_adapter(CohereAdapter)
+register_model_adapter(Aya101Adapter)
+register_model_adapter(Aya23Adapter)
 register_model_adapter(DBRXAdapter)
 register_model_adapter(GemmaAdapter)
 register_model_adapter(YandexGPTAdapter)
