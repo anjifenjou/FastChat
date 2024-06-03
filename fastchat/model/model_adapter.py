@@ -228,9 +228,9 @@ def load_model(
         if num_gpus != 1:
             kwargs["device_map"] = "auto"
             if max_gpu_memory is None:
-                kwargs[
-                    "device_map"
-                ] = "sequential"  # This is important for not the same VRAM sizes
+                kwargs["device_map"] = (
+                    "sequential"  # This is important for not the same VRAM sizes
+                )
                 available_gpu_memory = get_gpu_memory(num_gpus)
                 kwargs["max_memory"] = {
                     i: str(int(available_gpu_memory[i] * 0.85)) + "GiB"
@@ -2397,7 +2397,7 @@ class CohereAdapter(BaseModelAdapter):
 
 
 class Aya23Adapter(BaseModelAdapter):
-    """The model adapter for CohereForAI/aya-23 """
+    """The model adapter for CohereForAI/aya-23"""
 
     def match(self, model_path: str):
         # return "aya" in model_path.lower() and "23" in model_path.lower() # to avoid confusion with CohereForAI/aya-101
@@ -2408,7 +2408,7 @@ class Aya23Adapter(BaseModelAdapter):
 
 
 class Aya101Adapter(BaseModelAdapter):
-    """The model adapter for CohereForAI/aya-101 """
+    """The model adapter for CohereForAI/aya-101"""
 
     def match(self, model_path: str):
         return model_path in ["aya-101"]
@@ -2426,6 +2426,7 @@ class Aya101Adapter(BaseModelAdapter):
 
     def get_default_conv_template(self, model_path: str) -> Conversation:
         return get_conv_template("zero_shot")
+
 
 class DBRXAdapter(BaseModelAdapter):
     """The model adapter for Databricks"""
