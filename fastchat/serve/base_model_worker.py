@@ -96,7 +96,9 @@ class BaseModelWorker:
             "worker_status": self.get_status(),
             "multimodal": self.multimodal,
         }
+        logger.info(f"URL is: {url}")
         r = requests.post(url, json=data)
+        logger.info(f"Response status is: {r.status_code} \nContent: {r.content} ")
         assert r.status_code == 200
 
     def send_heart_beat(self):
