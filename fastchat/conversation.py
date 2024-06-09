@@ -291,6 +291,8 @@ class Conversation:
             return ret
         elif self.sep_style == SeparatorStyle.GEMMA:
             ret = "<bos>"
+            if self.system_message:
+                ret += system_prompt + "\n"  # add the possibility to add system prompt
             for role, message in self.messages:
                 if message:
                     ret += "<start_of_turn>" + role + "\n" + message + self.sep
@@ -300,13 +302,15 @@ class Conversation:
 
         elif self.sep_style == SeparatorStyle.AYA23:
             ret = "<BOS_TOKEN>"
+            if self.system_message:
+                ret += system_prompt + "\n"  # add the possibility to add system prompt
             for role, message in self.messages:
                 if message:
                     # source1: https://huggingface.co/CohereForAI/aya-23-8B
                     # source2: https://arxiv.org/pdf/2405.15032 (Table 2)
                     ret += "<|START_OF_TURN_TOKEN|>" + role + message + self.sep
                 else:
-                    ret += "<|START_OF_TURN_TOKEN|>" + role + "\n"
+                    ret += "<|START_OF_TURN_TOKEN|>" + role  # + "\n"
             return ret
 
         elif self.sep_style == SeparatorStyle.CLLM:
