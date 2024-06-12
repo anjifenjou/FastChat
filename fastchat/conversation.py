@@ -142,17 +142,21 @@ class Conversation:
             return ret
         elif self.sep_style == SeparatorStyle.LLAMA2:
             seps = [self.sep, self.sep2]
+            # todo: there is a missing bos token here
+            ret = "<s>"
             if self.system_message:
-                ret = system_prompt
+                ret += system_prompt
             else:
-                ret = "[INST] "
+                ret += "[INST] "
             for i, (role, message) in enumerate(self.messages):
-                tag = self.roles[i % 2]
+                # tag = self.roles[i % 2]
+                tag = role
+                sep = seps[0] if tag == self.roles[0] else seps[1]
                 if message:
                     if i == 0:
                         ret += message + " "
                     else:
-                        ret += tag + " " + message + seps[i % 2]
+                        ret += tag + " " + message + sep  # seps[i % 2]
                 else:
                     ret += tag
             return ret
